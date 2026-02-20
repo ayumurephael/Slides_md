@@ -178,6 +178,11 @@ function containsMath(runs: InlineRun[]): boolean {
   return runs.some((r) => r.type === "inline_math");
 }
 
+/** Check if any run contains inline code */
+function containsInlineCode(runs: InlineRun[]): boolean {
+  return runs.some((r) => r.type === "inline_code");
+}
+
 /** Escape HTML special characters */
 function escapeHTML(text: string): string {
   return text
@@ -323,7 +328,7 @@ async function prepHeading(el: HeadingElement, y: number, opts: RenderOptions, i
   const h = fontSize * 1.6;
   const color = opts.fontColor;
 
-  if (containsMath(el.runs)) {
+  if (containsMath(el.runs) || containsInlineCode(el.runs)) {
     const result = await renderRunsAsImage(
       el.runs, opts, fontSize, CONTENT_WIDTH_PX, color,
       { open: "<b>", close: "</b>" }
@@ -350,8 +355,9 @@ async function prepParagraph(
 ): Promise<ElementResult> {
   if (el.runs.length === 0) return { nextY: y + 8, shapeOps: [] };
 
-  // If paragraph contains inline math, render entire paragraph as image
-  if (containsMath(el.runs)) {
+  // If paragraph contains inline math or inline code, render entire paragraph as image
+  // (PowerPoint native text boxes cannot set background color for partial text)
+  if (containsMath(el.runs) || containsInlineCode(el.runs)) {
     try {
       const result = await renderRunsAsImage(el.runs, opts, opts.fontSize);
       const imgW = Math.min(result.widthPt, CONTENT_WIDTH);
@@ -363,8 +369,8 @@ async function prepParagraph(
       });
       return { nextY: y + imgH + ELEMENT_SPACING.paragraph, shapeOps: [] };
     } catch (err) {
-      console.error("Math paragraph render failed, falling back to text. LaTeX content:",
-        el.runs.filter(r => r.type === "inline_math").map(r => (r as any).latex).join(", "),
+      console.error("Paragraph render failed, falling back to text. Content:",
+        el.runs.map(r => r.type === 'text' ? r.text : `[${r.type}]`).join(""),
         "Error:", err);
       // Fall through to native text rendering below
     }
@@ -447,10 +453,10 @@ async function prepBlockquote(
   for (const child of el.elements) {
     if (child.type === "paragraph") {
       const text = runsToText(child.runs);
-      if (!text.trim() && !containsMath(child.runs)) { innerY += 8; continue; }
+      if (!text.trim() && !containsMath(child.runs) && !containsInlineCode(child.runs)) { innerY += 8; continue; }
 
-      if (containsMath(child.runs)) {
-        // Render paragraph with math as image
+      if (containsMath(child.runs) || containsInlineCode(child.runs)) {
+        // Render paragraph with math or inline code as image
         try {
           const innerWidthPx = Math.round(innerWidth * (96 / 72));
           const result = await renderRunsAsImage(child.runs, opts, opts.fontSize, innerWidthPx, "#666666");
@@ -504,8 +510,8 @@ async function prepList(el: ListElement, y: number, opts: RenderOptions, depth: 
     const item = el.items[idx];
     const prefix = el.ordered ? `${idx + 1}. ` : "• ";
 
-    if (containsMath(item.runs)) {
-      // Render list item with math as image (include prefix)
+    if (containsMath(item.runs) || containsInlineCode(item.runs)) {
+      // Render list item with math or inline code as image (include prefix)
       const prefixRuns: InlineRun[] = [{ type: "text", text: prefix }];
       const allRuns = [...prefixRuns, ...item.runs];
       const itemWidthPx = Math.round(itemW * (96 / 72));
@@ -611,7 +617,7 @@ async function prepTable(el: TableElement, y: number, opts: RenderOptions, image
   if (el.headers.length > 0) {
     const headerY = curY;
     for (let c = 0; c < el.headers.length; c++) {
-      if (containsMath(el.headers[c])) {
+      if (containsMath(el.headers[c]) || containsInlineCode(el.headers[c])) {
         try {
           const result = await renderRunsAsImage(el.headers[c], opts, opts.fontSize, colWidthPx);
           const imgW = Math.min(result.widthPt, colW);
@@ -648,7 +654,7 @@ async function prepTable(el: TableElement, y: number, opts: RenderOptions, image
   for (const row of el.rows) {
     const rowY = curY;
     for (let c = 0; c < row.length; c++) {
-      if (containsMath(row[c])) {
+      if (containsMath(row[c]) || containsInlineCode(row[c])) {
         try {
           const result = await renderRunsAsImage(row[c], opts, opts.fontSize, colWidthPx);
           const imgW = Math.min(result.widthPt, colW);
@@ -688,7 +694,7 @@ async function prepTaskList(el: TaskListElement, y: number, opts: RenderOptions,
   for (const item of el.items) {
     const prefix = item.checked ? "☑ " : "☐ ";
 
-    if (containsMath(item.runs)) {
+    if (containsMath(item.runs) || containsInlineCode(item.runs)) {
       const prefixRuns: InlineRun[] = [{ type: "text", text: prefix }];
       const allRuns = [...prefixRuns, ...item.runs];
       try {
