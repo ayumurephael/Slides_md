@@ -6,14 +6,15 @@ import { setZhFont, setEnFont, getRenderOptions } from "../fonts/font-manager";
 import { parseMarkdown } from "../core/markdown-parser";
 import { transformTokens } from "../core/ast-transformer";
 import { buildSlides } from "../core/slide-builder";
+import { preloadMathFonts } from "../core/math-renderer";
 
-/** Render markdown from the editor to the current slide */
 export async function ribbonRender(): Promise<void> {
   const editor = document.getElementById("md-editor") as HTMLTextAreaElement | null;
   const markdown = editor?.value?.trim();
   if (!markdown) return;
 
   try {
+    await preloadMathFonts();
     const tokens = parseMarkdown(markdown);
     const slides = transformTokens(tokens);
     if (slides.length === 0) return;

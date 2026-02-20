@@ -20,6 +20,7 @@ let renderBtn: HTMLButtonElement | null = null;
 let editor: HTMLTextAreaElement;
 let notificationBar: HTMLElement;
 let isPowerPoint = false;
+let fontsPreloaded = false;
 
 /** ID of the slide whose source is currently loaded in the editor */
 let activeSourceSlideId: string | null = null;
@@ -42,9 +43,15 @@ async function handleRender() {
   }
 
   if (renderBtn) renderBtn.disabled = true;
-  setStatus("解析中...");
+  setStatus("准备字体...");
 
   try {
+    if (!fontsPreloaded) {
+      await preloadMathFonts();
+      fontsPreloaded = true;
+    }
+
+    setStatus("解析中...");
     const tokens = parseMarkdown(markdown);
     setStatus("转换中...");
     const slides = transformTokens(tokens);
@@ -57,7 +64,6 @@ async function handleRender() {
     const options = getRenderOptions();
     await buildSlides(slides, options, (msg) => setStatus(msg));
 
-    // Persist Markdown source for this slide
     try {
       const slideId = await getCurrentSlideId();
       await saveSlideSource(slideId, markdown);
@@ -155,34 +161,30 @@ function init() {
   initFontManager();
   initSourceStore();
 
-  // Preload KaTeX fonts in background (non-blocking)
-  preloadMathFonts().catch((e) => console.warn("Font preload error:", e));
+  preloadMathFonts()
+    .then(() => { fontsPreloaded = true; })
+    .catch((e) => console.warn("Background font preload error:", e));
 
   const toolbarContainer = document.getElementById("toolbar")!;
   const editorContainer = document.getElementById("editor-container")!;
   statusBar = document.getElementById("status-bar")!;
   notificationBar = document.getElementById("source-notification")!;
 
-  // Create editor
   editor = createEditor(editorContainer);
 
-  // Create toolbar with font selectors, size, color, render button
   createToolbar(toolbarContainer, {
     onRender: handleRender,
     onNewSlide: handleNewSlide,
     onLoadFromSlide: handleLoadFromSlide,
   });
 
-  // Get render button reference
   renderBtn = document.getElementById("render-btn") as HTMLButtonElement;
 
-  // Wire up notification bar buttons
   document.getElementById("notification-load-btn")
     ?.addEventListener("click", handleLoadFromSlide);
   document.getElementById("notification-dismiss")
     ?.addEventListener("click", hideNotification);
 
-  // Register selection change handler to detect slides with stored source
   if (isPowerPoint) {
     try {
       Office.context.document.addHandlerAsync(

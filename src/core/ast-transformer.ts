@@ -32,7 +32,6 @@ export function transformTokens(tokens: Token[]): SlideIR[] {
       continue;
     }
 
-    // PLACEHOLDER_REMAINING
     if (token.type === "heading_open") {
       const level = parseInt(token.tag.slice(1), 10) as 1 | 2 | 3 | 4 | 5 | 6;
       const inlineToken = tokens[i + 1];
@@ -83,15 +82,17 @@ export function transformTokens(tokens: Token[]): SlideIR[] {
       continue;
     }
 
-    if (token.type === "math_block" || token.type === "math_block_eqno" || token.type === "math_block_end") {
-      if (token.type === "math_block" || token.type === "math_block_eqno") {
-        // Detect algorithm/algorithmic environments inside math blocks
-        const content = token.content.trim();
-        if (content.includes("\\begin{algorithm}") || content.includes("\\begin{algorithmic}")) {
-          currentElements.push({ type: "algorithm", code: content });
-        } else {
-          currentElements.push({ type: "block_math", latex: content });
-        }
+    // Handle block-level math (display math) from various delimiters:
+    // - $$...$$ (dollars)
+    // - \\[...\\] (brackets)
+    // - \\begin{...}...\\end{...} (beg_end)
+    if (token.type === "math_block" || token.type === "math_block_eqno") {
+      const content = token.content.trim();
+      // Detect algorithm/algorithmic environments inside math blocks
+      if (content.includes("\\begin{algorithm}") || content.includes("\\begin{algorithmic}")) {
+        currentElements.push({ type: "algorithm", code: content });
+      } else {
+        currentElements.push({ type: "block_math", latex: content });
       }
       i++;
       continue;

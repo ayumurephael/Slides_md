@@ -1,6 +1,22 @@
 declare module "markdown-it-texmath" {
   import MarkdownIt from "markdown-it";
-  const plugin: MarkdownIt.PluginWithOptions;
+  interface TexmathPlugin {
+    (md: MarkdownIt, options?: any): void;
+    /** Global engine reference (set by the plugin on first use) */
+    katex: any;
+    /** Merge delimiter names/objects into { inline, block } rule arrays */
+    mergeDelimiters(delims?: string | string[] | object[]): {
+      inline: any[];
+      block: any[];
+    };
+    /** Predefined delimiter rule sets */
+    rules: Record<string, { inline: any[]; block: any[] }>;
+    /** Render LaTeX via the current engine */
+    render(tex: string, displayMode: boolean, options: any): string;
+    inlineRuleNames: string[];
+    blockRuleNames: string[];
+  }
+  const plugin: TexmathPlugin;
   export default plugin;
 }
 

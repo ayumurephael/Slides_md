@@ -302,3 +302,94 @@ slide-builder 逐元素渲染到 PowerPoint：
 
 - GitHub Issues: [https://github.com/ayumurephael/Slides_md/issues](https://github.com/ayumurephael/Slides_md/issues)
 - GitHub: [@ayumurephael](https://github.com/ayumurephael)
+
+
+使用步骤: 
+在终端中运行（保持窗口不要关闭）:
+```bash
+cd D:/桌面/Slides_md
+npm run dev
+```
+等待看到 compiled successfully 后，浏览器访问 https://localhost:3000/taskpane.html 确认页面能正常打开。
+
+
+新建空白幻灯片按钮
+- 在工具栏中"渲染到幻灯片"左侧添加了"新建空白幻灯片"按钮(蓝色描边白底样式) 
+- 点击后在编辑器光标位置插入`\n\n---\n\n` 分隔符，光标自动定位到新幻灯片区域
+
+TikZ 绘图支持
+- 语法：使用 [```tikz] 代码围栏标记TikZ 代码块
+```
+```tikz
+\begin{tikzpicture}
+  \draw (0,0) circle (1cm);
+  \draw (0,0) -- (1,1);
+  \draw[red, thick] (0,0) rectangle (2,1);
+\end{tikzpicture}
+```
+```
+- 新增 TikZElement 类型 (src/types/ir.ts)
+- AST 转换器自动识别tikz 语言的fence 块(ast-transformer.ts)
+- 新增tikz-renderer.ts：从CDN 加载tikzjaX，在浏览器中编译TikZ →SVG →PNG（通过htmL2canvas），结果带缓存
+- 如果TikZ 代码没有\begin{tikzpicture} 包裹会自动补全
+- 渲染失败时降级为橙色背景的代码块，显示[TkZ渲染失败]标签和源码
+
+LaTeX 伪代码渲染(新增 src/core/algorithm-renderer.ts)
+新增了完整的伪代码渲染管线：
+- 支持两种输入语法：
+  - algorithm 或pseudocode代码围栏
+  - $$数学块中包含\begin{algorithm}或\begin{algorithmic}的内容会自动识别
+- 内置解析器支持所有标准 algorithmic 命令：\State，\If/\ELsIf/\Else/\EndIf，\For/\ForAlL/\EndFor，\WhiLe/\EndWhiLe，\Function/\EndFunction,\Return, \Require/\Ensure, \Comment, \caption
+- 自动缩进、行号、关键字高亮（蓝色）、函数名着色（紫色）、注释灰色斜体行内数学公式（$.··$）通过KaTeX渲染
+- 最终通过htmL2canvas 转为高分辨率PNG 插入幻灯片，失败时降级为代码块显示
+
+
+要登录 GitHub CLI (gh) 账户，而终端环境不支持交互式浏览器登录，可以使用非交互式方法：通过个人访问令牌 (Personal Access Token, PAT) 进行认证。这是一种标准的安全方式，适用于 headless 或纯终端环境。以下是详细步骤：
+
+### 步骤 1: 生成 GitHub Personal Access Token (PAT)
+1. 在浏览器中访问你的 GitHub 账户（如果你无法在当前终端打开浏览器，可以在其他设备上操作，然后复制 token 到终端）。
+2. 登录 GitHub 后，点击右上角头像 > **Settings**（设置）。
+3. 在左侧菜单中，选择 **Developer settings**（开发者设置） > **Personal access tokens**（个人访问令牌） > **Tokens (classic)**（经典令牌）。
+4. 点击 **Generate new token (classic)**（生成新经典令牌）。
+5. 为令牌设置一个描述（例如 "gh CLI login"），并选择以下最小所需权限（scopes）：
+   - `repo`（仓库访问）
+   - `read:org`（读取组织信息）
+   - `gist`（Gist 操作）
+   （注意：如果需要更多功能，可以根据需求添加其他 scopes，但最小这些即可。）
+6. 设置过期时间（推荐有限期），然后点击 **Generate token**。
+7. 复制生成的 token（以 `ghp_` 开头），并安全保存（它只会显示一次）。如果你使用细粒度令牌（fine-grained），行为可能略有不同，建议优先用经典令牌。
+
+### 步骤 2: 在终端中使用 PAT 登录 gh
+有两种常见方式：
+
+#### 方式 1: 通过标准输入直接传递 token
+- 在终端运行以下命令，将你的 token 替换为实际值：
+  ```
+  echo "your_token_here" | gh auth login --with-token
+  ```
+  - 这会将 token 通过管道传入 gh，进行认证。
+  - 如果成功，gh 会提示认证完成。你可以用 `gh auth status` 检查登录状态。
+
+#### 方式 2: 从文件读取 token
+- 先将 token 保存到一个文件中，例如 `token.txt`（确保文件权限安全，如 `chmod 600 token.txt`）。
+- 然后运行：
+  ```
+  gh auth login --with-token < token.txt
+  ```
+  - 这会从文件中读取 token 进行登录。
+
+#### 方式 3: 使用环境变量（适合自动化或脚本）
+- 设置环境变量：
+  ```
+  export GH_TOKEN="your_token_here"
+  ```
+- gh 会自动使用这个变量进行认证，无需运行 `gh auth login`。这在 CI/CD 或 headless 环境中特别有用。
+- 验证：运行 `gh auth status` 检查。
+
+### 注意事项
+- **安全性**：永远不要将 token 硬编码到脚本或公开分享。使用后，如果不再需要，可以在 GitHub 设置中删除该 token。
+- **版本兼容**：gh 2.87.0 支持这些方法，没有已知特定问题。如果遇到错误（如 "invalid token"），检查 token 是否过期或 scopes 是否正确。
+- **企业版 GitHub**：如果你的账户是 GitHub Enterprise，添加 `--hostname <your-enterprise-host>` 参数，例如 `gh auth login --hostname github.mycompany.com --with-token < token.txt`。
+- **故障排除**：如果登录失败，运行 `gh auth login --help` 查看更多选项，或检查网络连接。token 必须有正确的 scopes，否则某些 gh 命令会出错。
+
+登录成功后，你就可以使用 gh 进行仓库操作、issue 处理等。如果需要更多帮助，参考官方文档或运行 `gh help`。

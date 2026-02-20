@@ -1,5 +1,12 @@
 import katex from "katex";
 import html2canvas from "html2canvas";
+import {
+  getRenderScale,
+  getRenderQuality,
+  HTML2CANVAS_OPTIONS,
+  canvasToBase64Raw,
+  pixelsToPoints,
+} from "./render-config";
 
 export interface AlgorithmRenderResult {
   base64: string; // raw base64 (no data URL prefix)
@@ -7,7 +14,6 @@ export interface AlgorithmRenderResult {
   heightPt: number;
 }
 
-const RENDER_SCALE = 5; // 5x for ≥330 DPI (theoretical 480 DPI)
 const cache = new Map<string, AlgorithmRenderResult>();
 
 /**
@@ -42,6 +48,8 @@ function renderMathInline(tex: string): string {
       displayMode: false,
       throwOnError: false,
       output: "html",
+      strict: false,
+      trust: true,
     });
   } catch {
     return `<code>${tex}</code>`;
@@ -255,6 +263,9 @@ function parseLine(line: string, currentIndent: number): ParsedLine {
 /* ------------------------------------------------------------------ */
 
 async function htmlToPng(html: string): Promise<AlgorithmRenderResult> {
+  const scale = getRenderScale();
+  const quality = getRenderQuality();
+
   const container = document.createElement("div");
   container.style.cssText = "position:absolute;left:-9999px;top:0;background:white;";
   container.innerHTML = html;
@@ -262,17 +273,12 @@ async function htmlToPng(html: string): Promise<AlgorithmRenderResult> {
 
   try {
     const canvas = await html2canvas(container, {
-      scale: RENDER_SCALE,
-      backgroundColor: "#ffffff",
-      logging: false,
-      useCORS: true,
+      ...HTML2CANVAS_OPTIONS,
+      scale,
     });
-    const dataUrl = canvas.toDataURL("image/png");
-    const widthPt = canvas.width / RENDER_SCALE / 1.333;
-    const heightPt = canvas.height / RENDER_SCALE / 1.333;
-
-    const idx = dataUrl.indexOf(",");
-    const raw = idx >= 0 ? dataUrl.slice(idx + 1) : dataUrl;
+    const raw = canvasToBase64Raw(canvas, quality);
+    const widthPt = pixelsToPoints(canvas.width, scale);
+    const heightPt = pixelsToPoints(canvas.height, scale);
 
     return { base64: raw, widthPt, heightPt };
   } finally {

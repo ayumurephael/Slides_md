@@ -160,13 +160,13 @@ interface ElementResult {
   shapeOps: ShapeOp[];
 }
 
-/** Convert inline runs to plain text */
+/** Convert inline runs to plain text (preserving math delimiters for readability) */
 function runsToText(runs: InlineRun[]): string {
   return runs.map((r) => {
     switch (r.type) {
       case "text": return r.text;
       case "inline_code": return r.code;
-      case "inline_math": return r.latex;
+      case "inline_math": return r.displayMode ? `$$${r.latex}$$` : `$${r.latex}$`;
       case "link": return r.text;
       default: return "";
     }
@@ -208,9 +208,12 @@ function runsToHTML(runs: InlineRun[], opts: RenderOptions): string {
             displayMode: run.displayMode || false,
             throwOnError: false,
             output: "html",
+            strict: false,
+            trust: true,
           });
-        } catch {
-          return `<code>${escapeHTML(run.latex)}</code>`;
+        } catch (e) {
+          console.warn("KaTeX renderToString failed for:", run.latex.substring(0, 60), e);
+          return `<code style="font-family:${opts.codeFontFamily},Consolas,monospace;color:#8B4513;font-style:italic;background:#fff8e8;padding:1px 4px;border-radius:3px;">${escapeHTML(run.latex)}</code>`;
         }
       case "inline_code":
         return `<code style="font-family:${opts.codeFontFamily},Consolas,monospace;background:#f5f5f5;padding:1px 4px;border-radius:3px;color:#C7254E;">${escapeHTML(run.code)}</code>`;
@@ -397,13 +400,14 @@ async function prepParagraph(
         });
         pos += run.text.length;
       } else if (run.type === "inline_math" && run.latex.length > 0) {
-        // Fallback: show LaTeX source as styled text
-        const sub = tb.textFrame.textRange.getSubstring(pos, run.latex.length);
+        // Fallback: show LaTeX source with $ delimiters as styled text
+        const display = run.displayMode ? `$$${run.latex}$$` : `$${run.latex}$`;
+        const sub = tb.textFrame.textRange.getSubstring(pos, display.length);
         sub.font.name = opts.codeFontFamily;
         sub.font.size = opts.fontSize;
         sub.font.color = "#8B4513";
         sub.font.italic = true;
-        pos += run.latex.length;
+        pos += display.length;
       }
     }
   }];
@@ -555,8 +559,8 @@ async function prepBlockMath(
     return { nextY: y + imgH + ELEMENT_SPACING.block_math, shapeOps: [] };
   } catch (err) {
     console.error("Block math render failed:", el.latex.substring(0, 80), err);
-    // Fallback: show LaTeX source in a styled text box
-    const text = el.latex;
+    // Fallback: show LaTeX source in a styled text box with delimiters
+    const text = `$$${el.latex}$$`;
     const h = Math.max(opts.fontSize * 1.6, Math.ceil(text.length / 60) * opts.fontSize * 1.6);
     const ops: ShapeOp[] = [(slide) => {
       const tb = slide.shapes.addTextBox(text, {
