@@ -1,0 +1,29 @@
+node_modules/
+dist/
+*.js.map
+
+# Dev certs
+*.crt
+*.key
+*.pem
+certs/
+
+# OS files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment
+.env
+.env.local

@@ -1,0 +1,226 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: "Segoe UI", "微软雅黑", sans-serif;
+  font-size: 13px;
+  color: #333;
+  background: #fafafa;
+  overflow: hidden;
+  height: 100vh;
+}
+
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+/* Toolbar — bottom control bar */
+.toolbar {
+  padding: 6px 12px;
+  background: #fff;
+  border-top: 1px solid #e0e0e0;
+  flex-shrink: 0;
+}
+
+.toolbar-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.toolbar-group label {
+  font-size: 12px;
+  color: #666;
+  white-space: nowrap;
+}
+
+.toolbar-group select {
+  padding: 3px 6px;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+  font-size: 12px;
+  max-width: 110px;
+}
+
+.toolbar-group input[type="number"] {
+  width: 52px;
+  padding: 3px 6px;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+  font-size: 12px;
+}
+
+.toolbar-group input[type="color"] {
+  width: 28px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+#render-btn {
+  padding: 6px 16px;
+  background: #0078d4;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  font-size: 13px;
+  cursor: pointer;
+  margin-left: auto;
+  transition: background 0.2s;
+}
+
+#render-btn:hover {
+  background: #106ebe;
+}
+
+#render-btn:disabled {
+  background: #999;
+  cursor: not-allowed;
+}
+
+#new-slide-btn {
+  padding: 6px 16px;
+  background: #fff;
+  color: #0078d4;
+  border: 1px solid #0078d4;
+  border-radius: 4px;
+  font-size: 13px;
+  cursor: pointer;
+  margin-left: auto;
+  transition: background 0.2s, color 0.2s;
+}
+
+#new-slide-btn:hover {
+  background: #e5f1fb;
+}
+
+/* Main container */
+#main-container {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+#editor-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+#md-editor {
+  flex: 1;
+  width: 100%;
+  padding: 12px;
+  border: none;
+  outline: none;
+  resize: none;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  background: #fff;
+  tab-size: 2;
+}
+
+/* Status bar */
+#status-bar {
+  padding: 4px 12px;
+  background: #f0f0f0;
+  border-top: 1px solid #e0e0e0;
+  font-size: 12px;
+  color: #666;
+  flex-shrink: 0;
+  min-height: 24px;
+}
+
+#status-bar.error {
+  color: #d32f2f;
+  background: #fce4ec;
+}
+
+#status-bar.success {
+  color: #2e7d32;
+  background: #e8f5e9;
+}
+
+/* Load from slide button */
+#load-from-slide-btn {
+  padding: 6px 16px;
+  background: #fff;
+  color: #6a3e7e;
+  border: 1px solid #6a3e7e;
+  border-radius: 4px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+
+#load-from-slide-btn:hover {
+  background: #f3e5f5;
+}
+
+/* Notification bar for detected SlideMD content */
+#source-notification {
+  display: none;
+  padding: 6px 12px;
+  background: #e3f2fd;
+  border-bottom: 1px solid #90caf9;
+  font-size: 12px;
+  color: #1565c0;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+#source-notification.visible {
+  display: flex;
+}
+
+#source-notification button {
+  padding: 2px 10px;
+  background: #1976d2;
+  color: #fff;
+  border: none;
+  border-radius: 3px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+#source-notification button:hover {
+  background: #1565c0;
+}
+
+#source-notification .dismiss {
+  margin-left: auto;
+  background: transparent;
+  color: #90caf9;
+  font-size: 16px;
+  padding: 0 4px;
+}
+
+#source-notification .dismiss:hover {
+  color: #1565c0;
+}
+
+/* Editor highlight animation when source is loaded */
+@keyframes editorFlash {
+  0% { box-shadow: inset 0 0 0 2px #1976d2; }
+  100% { box-shadow: inset 0 0 0 0 transparent; }
+}
+
+#md-editor.source-loaded {
+  animation: editorFlash 1.2s ease-out;
+}

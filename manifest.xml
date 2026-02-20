@@ -1,0 +1,352 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<OfficeApp xmlns="http://schemas.microsoft.com/office/appforoffice/1.1"
+           xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+           xmlns:bt="http://schemas.microsoft.com/office/officeappbasictypes/1.0"
+           xmlns:ov="http://schemas.microsoft.com/office/taskpaneappversionoverrides"
+           xsi:type="TaskPaneApp">
+  <Id>a1b2c3d4-e5f6-7890-abcd-ef1234567890</Id>
+  <Version>1.1.0.0</Version>
+  <ProviderName>Slides MD</ProviderName>
+  <DefaultLocale>zh-CN</DefaultLocale>
+  <DisplayName DefaultValue="Slides MD - Markdown 渲染器"/>
+  <Description DefaultValue="在 PowerPoint 中渲染 Markdown 内容，支持 LaTeX 数学公式"/>
+  <IconUrl DefaultValue="https://localhost:3000/assets/icon-32.png"/>
+  <HighResolutionIconUrl DefaultValue="https://localhost:3000/assets/icon-80.png"/>
+  <SupportUrl DefaultValue="https://localhost:3000"/>
+  <AppDomains>
+    <AppDomain>https://localhost:3000</AppDomain>
+  </AppDomains>
+  <Hosts>
+    <Host Name="Presentation"/>
+  </Hosts>
+  <Requirements>
+    <Sets>
+      <Set Name="PowerPointApi" MinVersion="1.4"/>
+    </Sets>
+  </Requirements>
+  <DefaultSettings>
+    <SourceLocation DefaultValue="https://localhost:3000/taskpane.html"/>
+  </DefaultSettings>
+  <Permissions>ReadWriteDocument</Permissions>
+  <!-- V1.0 fallback: button on Home tab -->
+  <VersionOverrides xmlns="http://schemas.microsoft.com/office/taskpaneappversionoverrides" xsi:type="VersionOverridesV1_0">
+    <Hosts>
+      <Host xsi:type="Presentation">
+        <DesktopFormFactor>
+          <GetStarted>
+            <Title resid="GetStarted.Title"/>
+            <Description resid="GetStarted.Description"/>
+            <LearnMoreUrl resid="GetStarted.LearnMoreUrl"/>
+          </GetStarted>
+          <FunctionFile resid="Taskpane.Url"/>
+          <ExtensionPoint xsi:type="PrimaryCommandSurface">
+            <OfficeTab id="TabHome">
+              <Group id="FallbackGroup">
+                <Label resid="CommandsGroup.Label"/>
+                <Icon>
+                  <bt:Image size="16" resid="Icon.16x16"/>
+                  <bt:Image size="32" resid="Icon.32x32"/>
+                  <bt:Image size="80" resid="Icon.80x80"/>
+                </Icon>
+                <Control xsi:type="Button" id="FallbackTaskpaneButton">
+                  <Label resid="TaskpaneButton.Label"/>
+                  <Supertip>
+                    <Title resid="TaskpaneButton.Label"/>
+                    <Description resid="TaskpaneButton.Tooltip"/>
+                  </Supertip>
+                  <Icon>
+                    <bt:Image size="16" resid="Icon.16x16"/>
+                    <bt:Image size="32" resid="Icon.32x32"/>
+                    <bt:Image size="80" resid="Icon.80x80"/>
+                  </Icon>
+                  <Action xsi:type="ShowTaskpane">
+                    <TaskpaneId>ButtonId1</TaskpaneId>
+                    <SourceLocation resid="Taskpane.Url"/>
+                  </Action>
+                </Control>
+              </Group>
+            </OfficeTab>
+          </ExtensionPoint>
+        </DesktopFormFactor>
+      </Host>
+    </Hosts>
+    <Resources>
+      <bt:Images>
+        <bt:Image id="Icon.16x16" DefaultValue="https://localhost:3000/assets/icon-16.png"/>
+        <bt:Image id="Icon.32x32" DefaultValue="https://localhost:3000/assets/icon-32.png"/>
+        <bt:Image id="Icon.80x80" DefaultValue="https://localhost:3000/assets/icon-80.png"/>
+      </bt:Images>
+      <bt:Urls>
+        <bt:Url id="Taskpane.Url" DefaultValue="https://localhost:3000/taskpane.html"/>
+        <bt:Url id="GetStarted.LearnMoreUrl" DefaultValue="https://localhost:3000"/>
+      </bt:Urls>
+      <bt:ShortStrings>
+        <bt:String id="GetStarted.Title" DefaultValue="Slides MD 已就绪"/>
+        <bt:String id="CommandsGroup.Label" DefaultValue="Markdown"/>
+        <bt:String id="TaskpaneButton.Label" DefaultValue="Slides MD"/>
+      </bt:ShortStrings>
+      <bt:LongStrings>
+        <bt:String id="GetStarted.Description" DefaultValue="点击 Slides MD 按钮开始使用"/>
+        <bt:String id="TaskpaneButton.Tooltip" DefaultValue="打开 Markdown 编辑器"/>
+      </bt:LongStrings>
+    </Resources>
+<!-- V1.1: Shared runtime + custom SlideMD ribbon tab -->
+    <VersionOverrides xmlns="http://schemas.microsoft.com/office/taskpaneappversionoverrides" xsi:type="VersionOverridesV1_1">
+      <Requirements>
+        <Sets DefaultMinVersion="1.4">
+          <Set Name="PowerPointApi" MinVersion="1.4"/>
+        </Sets>
+      </Requirements>
+      <Hosts>
+        <Host xsi:type="Presentation">
+          <Runtimes>
+            <Runtime resid="Taskpane.Url" lifetime="long"/>
+          </Runtimes>
+          <DesktopFormFactor>
+            <GetStarted>
+              <Title resid="GetStarted.Title"/>
+              <Description resid="GetStarted.Description"/>
+              <LearnMoreUrl resid="GetStarted.LearnMoreUrl"/>
+            </GetStarted>
+            <FunctionFile resid="Taskpane.Url"/>
+            <ExtensionPoint xsi:type="PrimaryCommandSurface">
+              <CustomTab id="SlideMDTab">
+                <Label resid="SlideMDTab.Label"/>
+                <!-- Group 1: Chinese Font -->
+                <Group id="ZhFontGroup">
+                  <Label resid="ZhFontGroup.Label"/>
+                  <Icon>
+                    <bt:Image size="16" resid="Icon.16x16"/>
+                    <bt:Image size="32" resid="Icon.32x32"/>
+                    <bt:Image size="80" resid="Icon.80x80"/>
+                  </Icon>
+                  <Control xsi:type="Menu" id="ZhFontMenu">
+                    <Label resid="ZhFontMenu.Label"/>
+                    <Supertip>
+                      <Title resid="ZhFontMenu.Label"/>
+                      <Description resid="ZhFontMenu.Tip"/>
+                    </Supertip>
+                    <Icon>
+                      <bt:Image size="16" resid="Icon.16x16"/>
+                      <bt:Image size="32" resid="Icon.32x32"/>
+                      <bt:Image size="80" resid="Icon.80x80"/>
+                    </Icon>
+                    <Items>
+                      <Item id="ZhFont_MSYaHei">
+                        <Label resid="ZhFont.MSYaHei"/>
+                        <Supertip><Title resid="ZhFont.MSYaHei"/><Description resid="ZhFontMenu.Tip"/></Supertip>
+                        <Icon><bt:Image size="16" resid="Icon.16x16"/><bt:Image size="32" resid="Icon.32x32"/><bt:Image size="80" resid="Icon.80x80"/></Icon>
+                        <Action xsi:type="ExecuteFunction"><FunctionName>SetZhFont_MSYaHei</FunctionName></Action>
+                      </Item>
+                      <Item id="ZhFont_SimSun">
+                        <Label resid="ZhFont.SimSun"/>
+                        <Supertip><Title resid="ZhFont.SimSun"/><Description resid="ZhFontMenu.Tip"/></Supertip>
+                        <Icon><bt:Image size="16" resid="Icon.16x16"/><bt:Image size="32" resid="Icon.32x32"/><bt:Image size="80" resid="Icon.80x80"/></Icon>
+                        <Action xsi:type="ExecuteFunction"><FunctionName>SetZhFont_SimSun</FunctionName></Action>
+                      </Item>
+                      <Item id="ZhFont_SimHei">
+                        <Label resid="ZhFont.SimHei"/>
+                        <Supertip><Title resid="ZhFont.SimHei"/><Description resid="ZhFontMenu.Tip"/></Supertip>
+                        <Icon><bt:Image size="16" resid="Icon.16x16"/><bt:Image size="32" resid="Icon.32x32"/><bt:Image size="80" resid="Icon.80x80"/></Icon>
+                        <Action xsi:type="ExecuteFunction"><FunctionName>SetZhFont_SimHei</FunctionName></Action>
+                      </Item>
+                      <Item id="ZhFont_KaiTi">
+                        <Label resid="ZhFont.KaiTi"/>
+                        <Supertip><Title resid="ZhFont.KaiTi"/><Description resid="ZhFontMenu.Tip"/></Supertip>
+                        <Icon><bt:Image size="16" resid="Icon.16x16"/><bt:Image size="32" resid="Icon.32x32"/><bt:Image size="80" resid="Icon.80x80"/></Icon>
+                        <Action xsi:type="ExecuteFunction"><FunctionName>SetZhFont_KaiTi</FunctionName></Action>
+                      </Item>
+                      <Item id="ZhFont_FangSong">
+                        <Label resid="ZhFont.FangSong"/>
+                        <Supertip><Title resid="ZhFont.FangSong"/><Description resid="ZhFontMenu.Tip"/></Supertip>
+                        <Icon><bt:Image size="16" resid="Icon.16x16"/><bt:Image size="32" resid="Icon.32x32"/><bt:Image size="80" resid="Icon.80x80"/></Icon>
+                        <Action xsi:type="ExecuteFunction"><FunctionName>SetZhFont_FangSong</FunctionName></Action>
+                      </Item>
+                      <Item id="ZhFont_STZhongSong">
+                        <Label resid="ZhFont.STZhongSong"/>
+                        <Supertip><Title resid="ZhFont.STZhongSong"/><Description resid="ZhFontMenu.Tip"/></Supertip>
+                        <Icon><bt:Image size="16" resid="Icon.16x16"/><bt:Image size="32" resid="Icon.32x32"/><bt:Image size="80" resid="Icon.80x80"/></Icon>
+                        <Action xsi:type="ExecuteFunction"><FunctionName>SetZhFont_STZhongSong</FunctionName></Action>
+                      </Item>
+                      <Item id="ZhFont_STKaiTi">
+                        <Label resid="ZhFont.STKaiTi"/>
+                        <Supertip><Title resid="ZhFont.STKaiTi"/><Description resid="ZhFontMenu.Tip"/></Supertip>
+                        <Icon><bt:Image size="16" resid="Icon.16x16"/><bt:Image size="32" resid="Icon.32x32"/><bt:Image size="80" resid="Icon.80x80"/></Icon>
+                        <Action xsi:type="ExecuteFunction"><FunctionName>SetZhFont_STKaiTi</FunctionName></Action>
+                      </Item>
+                      <Item id="ZhFont_STSong">
+                        <Label resid="ZhFont.STSong"/>
+                        <Supertip><Title resid="ZhFont.STSong"/><Description resid="ZhFontMenu.Tip"/></Supertip>
+                        <Icon><bt:Image size="16" resid="Icon.16x16"/><bt:Image size="32" resid="Icon.32x32"/><bt:Image size="80" resid="Icon.80x80"/></Icon>
+                        <Action xsi:type="ExecuteFunction"><FunctionName>SetZhFont_STSong</FunctionName></Action>
+                      </Item>
+                    </Items>
+                  </Control>
+                </Group>
+<!-- English Font Group -->
+                <Group id="EnFontGroup">
+                  <Label resid="EnFontGroup.Label"/>
+                  <Icon>
+                    <bt:Image size="16" resid="Icon.16x16"/>
+                    <bt:Image size="32" resid="Icon.32x32"/>
+                    <bt:Image size="80" resid="Icon.80x80"/>
+                  </Icon>
+                  <Control xsi:type="Menu" id="EnFontMenu">
+                    <Label resid="EnFontMenu.Label"/>
+                    <Supertip>
+                      <Title resid="EnFontMenu.Label"/>
+                      <Description resid="EnFontMenu.Tip"/>
+                    </Supertip>
+                    <Icon>
+                      <bt:Image size="16" resid="Icon.16x16"/>
+                      <bt:Image size="32" resid="Icon.32x32"/>
+                      <bt:Image size="80" resid="Icon.80x80"/>
+                    </Icon>
+                    <Items>
+                      <Item id="EnFont_Calibri">
+                        <Label resid="EnFont.Calibri"/>
+                        <Supertip><Title resid="EnFont.Calibri"/><Description resid="EnFontMenu.Tip"/></Supertip>
+                        <Icon><bt:Image size="16" resid="Icon.16x16"/><bt:Image size="32" resid="Icon.32x32"/><bt:Image size="80" resid="Icon.80x80"/></Icon>
+                        <Action xsi:type="ExecuteFunction"><FunctionName>SetEnFont_Calibri</FunctionName></Action>
+                      </Item>
+                      <Item id="EnFont_Arial">
+                        <Label resid="EnFont.Arial"/>
+                        <Supertip><Title resid="EnFont.Arial"/><Description resid="EnFontMenu.Tip"/></Supertip>
+                        <Icon><bt:Image size="16" resid="Icon.16x16"/><bt:Image size="32" resid="Icon.32x32"/><bt:Image size="80" resid="Icon.80x80"/></Icon>
+                        <Action xsi:type="ExecuteFunction"><FunctionName>SetEnFont_Arial</FunctionName></Action>
+                      </Item>
+                      <Item id="EnFont_TimesNewRoman">
+                        <Label resid="EnFont.TimesNewRoman"/>
+                        <Supertip><Title resid="EnFont.TimesNewRoman"/><Description resid="EnFontMenu.Tip"/></Supertip>
+                        <Icon><bt:Image size="16" resid="Icon.16x16"/><bt:Image size="32" resid="Icon.32x32"/><bt:Image size="80" resid="Icon.80x80"/></Icon>
+                        <Action xsi:type="ExecuteFunction"><FunctionName>SetEnFont_TimesNewRoman</FunctionName></Action>
+                      </Item>
+                      <Item id="EnFont_Verdana">
+                        <Label resid="EnFont.Verdana"/>
+                        <Supertip><Title resid="EnFont.Verdana"/><Description resid="EnFontMenu.Tip"/></Supertip>
+                        <Icon><bt:Image size="16" resid="Icon.16x16"/><bt:Image size="32" resid="Icon.32x32"/><bt:Image size="80" resid="Icon.80x80"/></Icon>
+                        <Action xsi:type="ExecuteFunction"><FunctionName>SetEnFont_Verdana</FunctionName></Action>
+                      </Item>
+                      <Item id="EnFont_Georgia">
+                        <Label resid="EnFont.Georgia"/>
+                        <Supertip><Title resid="EnFont.Georgia"/><Description resid="EnFontMenu.Tip"/></Supertip>
+                        <Icon><bt:Image size="16" resid="Icon.16x16"/><bt:Image size="32" resid="Icon.32x32"/><bt:Image size="80" resid="Icon.80x80"/></Icon>
+                        <Action xsi:type="ExecuteFunction"><FunctionName>SetEnFont_Georgia</FunctionName></Action>
+                      </Item>
+                      <Item id="EnFont_Tahoma">
+                        <Label resid="EnFont.Tahoma"/>
+                        <Supertip><Title resid="EnFont.Tahoma"/><Description resid="EnFontMenu.Tip"/></Supertip>
+                        <Icon><bt:Image size="16" resid="Icon.16x16"/><bt:Image size="32" resid="Icon.32x32"/><bt:Image size="80" resid="Icon.80x80"/></Icon>
+                        <Action xsi:type="ExecuteFunction"><FunctionName>SetEnFont_Tahoma</FunctionName></Action>
+                      </Item>
+                      <Item id="EnFont_SegoeUI">
+                        <Label resid="EnFont.SegoeUI"/>
+                        <Supertip><Title resid="EnFont.SegoeUI"/><Description resid="EnFontMenu.Tip"/></Supertip>
+                        <Icon><bt:Image size="16" resid="Icon.16x16"/><bt:Image size="32" resid="Icon.32x32"/><bt:Image size="80" resid="Icon.80x80"/></Icon>
+                        <Action xsi:type="ExecuteFunction"><FunctionName>SetEnFont_SegoeUI</FunctionName></Action>
+                      </Item>
+                      <Item id="EnFont_Cambria">
+                        <Label resid="EnFont.Cambria"/>
+                        <Supertip><Title resid="EnFont.Cambria"/><Description resid="EnFontMenu.Tip"/></Supertip>
+                        <Icon><bt:Image size="16" resid="Icon.16x16"/><bt:Image size="32" resid="Icon.32x32"/><bt:Image size="80" resid="Icon.80x80"/></Icon>
+                        <Action xsi:type="ExecuteFunction"><FunctionName>SetEnFont_Cambria</FunctionName></Action>
+                      </Item>
+                    </Items>
+                  </Control>
+                </Group>
+                <!-- Render Group -->
+                <Group id="RenderGroup">
+                  <Label resid="RenderGroup.Label"/>
+                  <Icon>
+                    <bt:Image size="16" resid="Icon.16x16"/>
+                    <bt:Image size="32" resid="Icon.32x32"/>
+                    <bt:Image size="80" resid="Icon.80x80"/>
+                  </Icon>
+                  <Control xsi:type="Button" id="RenderButton">
+                    <Label resid="RenderButton.Label"/>
+                    <Supertip>
+                      <Title resid="RenderButton.Label"/>
+                      <Description resid="RenderButton.Tip"/>
+                    </Supertip>
+                    <Icon>
+                      <bt:Image size="16" resid="Icon.16x16"/>
+                      <bt:Image size="32" resid="Icon.32x32"/>
+                      <bt:Image size="80" resid="Icon.80x80"/>
+                    </Icon>
+                    <Action xsi:type="ExecuteFunction">
+                      <FunctionName>RenderToSlide</FunctionName>
+                    </Action>
+                  </Control>
+                  <Control xsi:type="Button" id="ShowEditorButton">
+                    <Label resid="ShowEditor.Label"/>
+                    <Supertip>
+                      <Title resid="ShowEditor.Label"/>
+                      <Description resid="ShowEditor.Tip"/>
+                    </Supertip>
+                    <Icon>
+                      <bt:Image size="16" resid="Icon.16x16"/>
+                      <bt:Image size="32" resid="Icon.32x32"/>
+                      <bt:Image size="80" resid="Icon.80x80"/>
+                    </Icon>
+                    <Action xsi:type="ShowTaskpane">
+                      <TaskpaneId>ButtonId1</TaskpaneId>
+                      <SourceLocation resid="Taskpane.Url"/>
+                    </Action>
+                  </Control>
+                </Group>
+              </CustomTab>
+            </ExtensionPoint>
+          </DesktopFormFactor>
+        </Host>
+      </Hosts>
+      <Resources>
+        <bt:Images>
+          <bt:Image id="Icon.16x16" DefaultValue="https://localhost:3000/assets/icon-16.png"/>
+          <bt:Image id="Icon.32x32" DefaultValue="https://localhost:3000/assets/icon-32.png"/>
+          <bt:Image id="Icon.80x80" DefaultValue="https://localhost:3000/assets/icon-80.png"/>
+        </bt:Images>
+        <bt:Urls>
+          <bt:Url id="Taskpane.Url" DefaultValue="https://localhost:3000/taskpane.html"/>
+          <bt:Url id="GetStarted.LearnMoreUrl" DefaultValue="https://localhost:3000"/>
+        </bt:Urls>
+        <bt:ShortStrings>
+          <bt:String id="GetStarted.Title" DefaultValue="Slides MD 已就绪"/>
+          <bt:String id="CommandsGroup.Label" DefaultValue="Markdown"/>
+          <bt:String id="TaskpaneButton.Label" DefaultValue="Slides MD"/>
+          <bt:String id="SlideMDTab.Label" DefaultValue="SlideMD"/>
+          <bt:String id="ZhFontGroup.Label" DefaultValue="中文字体"/>
+          <bt:String id="ZhFontMenu.Label" DefaultValue="中文字体"/>
+          <bt:String id="EnFontGroup.Label" DefaultValue="英文字体"/>
+          <bt:String id="EnFontMenu.Label" DefaultValue="英文字体"/>
+          <bt:String id="RenderGroup.Label" DefaultValue="渲染"/>
+          <bt:String id="RenderButton.Label" DefaultValue="渲染到幻灯片"/>
+          <bt:String id="ShowEditor.Label" DefaultValue="编辑器"/>
+          <bt:String id="ZhFont.MSYaHei" DefaultValue="微软雅黑"/>
+          <bt:String id="ZhFont.SimSun" DefaultValue="宋体"/>
+          <bt:String id="ZhFont.SimHei" DefaultValue="黑体"/>
+          <bt:String id="ZhFont.KaiTi" DefaultValue="楷体"/>
+          <bt:String id="ZhFont.FangSong" DefaultValue="仿宋"/>
+          <bt:String id="ZhFont.STZhongSong" DefaultValue="华文中宋"/>
+          <bt:String id="ZhFont.STKaiTi" DefaultValue="华文楷体"/>
+          <bt:String id="ZhFont.STSong" DefaultValue="华文宋体"/>
+          <bt:String id="EnFont.Calibri" DefaultValue="Calibri"/>
+          <bt:String id="EnFont.Arial" DefaultValue="Arial"/>
+          <bt:String id="EnFont.TimesNewRoman" DefaultValue="Times New Roman"/>
+          <bt:String id="EnFont.Verdana" DefaultValue="Verdana"/>
+          <bt:String id="EnFont.Georgia" DefaultValue="Georgia"/>
+          <bt:String id="EnFont.Tahoma" DefaultValue="Tahoma"/>
+          <bt:String id="EnFont.SegoeUI" DefaultValue="Segoe UI"/>
+          <bt:String id="EnFont.Cambria" DefaultValue="Cambria"/>
+        </bt:ShortStrings>
+        <bt:LongStrings>
+          <bt:String id="GetStarted.Description" DefaultValue="点击 Slides MD 按钮开始使用"/>
+          <bt:String id="TaskpaneButton.Tooltip" DefaultValue="打开 Markdown 编辑器"/>
+          <bt:String id="ZhFontMenu.Tip" DefaultValue="选择中文字体"/>
+          <bt:String id="EnFontMenu.Tip" DefaultValue="选择英文字体"/>
+          <bt:String id="RenderButton.Tip" DefaultValue="将 Markdown 内容渲染到当前幻灯片"/>
+          <bt:String id="ShowEditor.Tip" DefaultValue="打开 Markdown 编辑器面板"/>
+        </bt:LongStrings>
+      </Resources>
+    </VersionOverrides>
+  </VersionOverrides>
+</OfficeApp>
