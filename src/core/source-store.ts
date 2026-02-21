@@ -4,8 +4,13 @@
  * Falls back to in-memory storage when Settings API is unavailable.
  */
 
+import type { RenderState } from "./diff-engine";
+
 const SOURCE_PREFIX = "slideMD_src_";
 const memoryStore = new Map<string, string>();
+
+/** In-memory render state cache (session-only, not persisted to .pptx) */
+const renderStateStore = new Map<string, RenderState>();
 
 let settingsAvailable = false;
 
@@ -54,4 +59,19 @@ export async function getCurrentSlideId(): Promise<string> {
     await context.sync();
     return slide.id;
   });
+}
+
+/** Save render state for a slide (session-only, not persisted) */
+export function saveRenderState(slideId: string, state: RenderState): void {
+  renderStateStore.set(slideId, state);
+}
+
+/** Load render state for a slide. Returns null if none stored. */
+export function loadRenderState(slideId: string): RenderState | null {
+  return renderStateStore.get(slideId) ?? null;
+}
+
+/** Clear render state for a slide (e.g. when shapes are manually deleted) */
+export function clearRenderState(slideId: string): void {
+  renderStateStore.delete(slideId);
 }

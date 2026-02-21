@@ -2,16 +2,13 @@ import "./taskpane.css";
 import "katex/dist/katex.min.css";
 import { createEditor } from "../ui/editor";
 import { createToolbar } from "../ui/toolbar";
-import { initFontManager, getRenderOptions } from "../fonts/font-manager";
-import { parseMarkdown } from "../core/markdown-parser";
-import { transformTokens } from "../core/ast-transformer";
-import { buildSlides } from "../core/slide-builder";
+import { initFontManager } from "../fonts/font-manager";
+import { renderMarkdownIncremental } from "../core/slide-builder";
 import { preloadMathFonts } from "../core/math-renderer";
 import { registerRibbonCommands } from "../commands/ribbon-commands";
 import { ICONS } from "../ui/icons";
 import {
   initSourceStore,
-  saveSlideSource,
   loadSlideSource,
   getCurrentSlideId,
 } from "../core/source-store";
@@ -23,7 +20,6 @@ let notificationBar: HTMLElement;
 let loadingOverlay: HTMLElement;
 let loadingText: HTMLElement;
 let isPowerPoint = false;
-let fontsPreloaded = false;
 
 /** ID of the slide whose source is currently loaded in the editor */
 let activeSourceSlideId: string | null = null;
@@ -55,45 +51,32 @@ async function handleRender() {
   }
 
   if (renderBtn) renderBtn.disabled = true;
-  setStatus("准备字体...", "rendering");
-  showLoading("准备字体...");
+  setStatus("准备渲染...", "rendering");
+  showLoading("准备渲染...");
 
   try {
-    if (!fontsPreloaded) {
-      await preloadMathFonts();
-      fontsPreloaded = true;
-    }
-
-    setStatus("解析中...", "rendering");
-    showLoading("解析 Markdown...");
-    const tokens = parseMarkdown(markdown);
-
-    setStatus("转换中...", "rendering");
-    showLoading("转换内容...");
-    const slides = transformTokens(tokens);
-
-    if (slides.length === 0) {
-      hideLoading();
-      setStatus("未检测到任何内容", "error");
-      return;
-    }
-
-    const options = getRenderOptions();
-    await buildSlides(slides, options, (msg) => {
+    const progress = (msg: string) => {
       setStatus(msg, "rendering");
       showLoading(msg);
-    });
+    };
 
-    try {
-      const slideId = await getCurrentSlideId();
-      await saveSlideSource(slideId, markdown);
-      activeSourceSlideId = slideId;
-    } catch (e) {
-      console.warn("Failed to save slide source:", e);
-    }
+    const result = await renderMarkdownIncremental(markdown, progress);
+
+    const slideId = await getCurrentSlideId();
+    activeSourceSlideId = slideId;
 
     hideLoading();
-    setStatus("渲染完成！新内容已追加到当前幻灯片", "success");
+    switch (result.kind) {
+      case "no_change":
+        setStatus("内容无变化，跳过渲染", "success");
+        break;
+      case "full_rebuild":
+        setStatus("渲染完成！（完整重建）", "success");
+        break;
+      case "incremental":
+        setStatus("渲染完成！（增量更新）", "success");
+        break;
+    }
   } catch (err: any) {
     console.error("Render error:", err);
     hideLoading();
@@ -192,7 +175,6 @@ function init() {
   initSourceStore();
 
   preloadMathFonts()
-    .then(() => { fontsPreloaded = true; })
     .catch((e) => console.warn("Background font preload error:", e));
 
   const toolbarContainer = document.getElementById("toolbar")!;

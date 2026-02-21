@@ -2,11 +2,8 @@
  * Ribbon command handlers for the SlideMD custom tab.
  * Shared runtime: these functions access the same global state as the taskpane.
  */
-import { setZhFont, setEnFont, getRenderOptions } from "../fonts/font-manager";
-import { parseMarkdown } from "../core/markdown-parser";
-import { transformTokens } from "../core/ast-transformer";
-import { buildSlides } from "../core/slide-builder";
-import { preloadMathFonts } from "../core/math-renderer";
+import { setZhFont, setEnFont } from "../fonts/font-manager";
+import { renderMarkdownIncremental } from "../core/slide-builder";
 
 export async function ribbonRender(): Promise<void> {
   const editor = document.getElementById("md-editor") as HTMLTextAreaElement | null;
@@ -14,12 +11,7 @@ export async function ribbonRender(): Promise<void> {
   if (!markdown) return;
 
   try {
-    await preloadMathFonts();
-    const tokens = parseMarkdown(markdown);
-    const slides = transformTokens(tokens);
-    if (slides.length === 0) return;
-    const options = getRenderOptions();
-    await buildSlides(slides, options);
+    await renderMarkdownIncremental(markdown);
   } catch (err) {
     console.error("Ribbon render error:", err);
   }
