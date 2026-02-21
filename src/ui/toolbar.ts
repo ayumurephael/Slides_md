@@ -17,19 +17,26 @@ function createIconButton(id: string, icon: string, text: string, callback: () =
   return btn;
 }
 
+function divider(): HTMLElement {
+  const el = document.createElement("div");
+  el.className = "toolbar-divider";
+  return el;
+}
+
 /** Create toolbar with all controls in a single horizontal row. */
 export function createToolbar(container: HTMLElement, callbacks: ToolbarCallbacks): void {
   const toolbar = document.createElement("div");
   toolbar.className = "toolbar";
 
-  // Single row: fonts + size + color + buttons
   const row = document.createElement("div");
   row.className = "toolbar-row";
 
-  // Font selectors (Chinese, English, Code) — appended inline
+  // ── Font selectors (Chinese, English, Code) ──
   createFontSelector(row);
 
-  // Font size
+  row.appendChild(divider());
+
+  // ── Font size ──
   const sizeGroup = document.createElement("div");
   sizeGroup.className = "toolbar-group";
   const sizeLabel = document.createElement("label");
@@ -49,7 +56,7 @@ export function createToolbar(container: HTMLElement, callbacks: ToolbarCallback
   sizeGroup.appendChild(sizeInput);
   row.appendChild(sizeGroup);
 
-  // Font color
+  // ── Font color ──
   const colorGroup = document.createElement("div");
   colorGroup.className = "toolbar-group";
   const colorLabel = document.createElement("label");
@@ -67,14 +74,16 @@ export function createToolbar(container: HTMLElement, callbacks: ToolbarCallback
   colorGroup.appendChild(colorInput);
   row.appendChild(colorGroup);
 
-  // Buttons
-  const loadBtn = createIconButton("load-from-slide-btn", ICONS.load, "从幻灯片加载", callbacks.onLoadFromSlide);
+  row.appendChild(divider());
+
+  // ── Action buttons ──
+  const loadBtn = createIconButton("load-from-slide-btn", ICONS.load, "加载", callbacks.onLoadFromSlide);
   row.appendChild(loadBtn);
 
-  const newSlideBtn = createIconButton("new-slide-btn", ICONS.newSlide, "新建空白幻灯片", callbacks.onNewSlide);
+  const newSlideBtn = createIconButton("new-slide-btn", ICONS.newSlide, "新幻灯片", callbacks.onNewSlide);
   row.appendChild(newSlideBtn);
 
-  const renderBtn = createIconButton("render-btn", ICONS.render, "渲染到幻灯片", callbacks.onRender);
+  const renderBtn = createIconButton("render-btn", ICONS.render, "渲染", callbacks.onRender);
   row.appendChild(renderBtn);
 
   toolbar.appendChild(row);

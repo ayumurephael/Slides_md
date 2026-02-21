@@ -1,64 +1,134 @@
-# Slide_md 插件设计规范
+# Slides MD — 设计规范 v2
 
-本文档概述了 `Slide_md` 插件 UI 优化的设计原则和规范。
+本文档描述 Slides MD 插件 UI 的设计系统。
 
-## 1. 色彩方案 (Color Palette)
+## 1. 色彩方案
 
-我们使用一组 CSS 变量来管理颜色，以确保整个插件的视觉一致性。
+### 主色 (Primary)
 
-| 变量名                      | 色值      | 描述                               |
-| --------------------------- | --------- | ---------------------------------- |
-| `--primary-color`           | `#4A90E2` | 主色调，用于主要按钮和高亮元素     |
-| `--primary-hover-color`     | `#357ABD` | 主色调的悬停状态                   |
-| `--primary-disabled-color`  | `#A9A9A9` | 禁用状态的颜色                     |
-| `--text-color`              | `#333333` | 主要文本颜色                       |
-| `--text-color-secondary`    | `#666666` | 次要文本颜色（如标签）             |
-| `--bg-color`                | `#F5F5F5` | 主要背景色                         |
-| `--bg-color-light`          | `#FFFFFF` | 较亮的背景色（如工具栏、编辑器）   |
-| `--border-color`            | `#DDDDDD` | 边框和分割线颜色                   |
-| `--success-color`           | `#2E7D32` | 成功状态的文本颜色                 |
-| `--success-bg-color`        | `#E8F5E9` | 成功状态的背景色                   |
-| `--error-color`             | `#D32F2F` | 错误状态的文本颜色                 |
-| `--error-bg-color`          | `#FCE4EC` | 错误状态的背景色                   |
-| `--notification-bg-color`   | `#E3F2FD` | 通知栏背景色                       |
-| `--notification-border-color` | `#90CAF9` | 通知栏边框颜色                     |
-| `--notification-text-color` | `#1565C0` | 通知栏文本颜色                     |
+| Token | 色值 | 用途 |
+|-------|------|------|
+| `--primary-50` | `#EBF3FE` | 按钮悬停背景、浅高亮 |
+| `--primary-100` | `#D0E4FC` | 按钮按下背景 |
+| `--primary-200` | `#A1C9F9` | 次要按钮边框 |
+| `--primary-300` | `#6BAAF5` | 编辑器闪烁动画 |
+| `--primary-400` | `#4A90E2` | 主操作按钮、光标色 |
+| `--primary-500` | `#2E74C6` | 主按钮悬停 |
+| `--primary-600` | `#1E5CA3` | 主按钮按下 |
+| `--primary-700` | `#164680` | 深色强调 |
 
-## 2. 字体排版 (Typography)
+### 强调色 (Accent — Purple)
 
-| 变量名                 | 值                                                                                   | 描述                           |
-| ---------------------- | ------------------------------------------------------------------------------------ | ------------------------------ |
-| `--font-family-sans`   | `system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif` | UI 的主要无衬线字体            |
-| `--font-family-mono`   | `Consolas, "Courier New", monospace`                                               | 代码编辑器的等宽字体           |
-| `--font-size-base`     | `14px`                                                                               | 基础字号                       |
-| `--font-size-sm`       | `12px`                                                                               | 较小字号（如标签、状态栏）     |
-| `--line-height-base`   | `1.5`                                                                                | 基础行高                       |
+| Token | 色值 | 用途 |
+|-------|------|------|
+| `--accent-50` | `#F3E8F9` | 加载按钮悬停背景 |
+| `--accent-100` | `#E1C4F0` | 加载按钮边框 |
+| `--accent-400` | `#9C5FBF` | 加载按钮悬停边框 |
+| `--accent-500` | `#7B3FA0` | 加载按钮文字 |
 
-## 3. 间距 (Spacing)
+### 中性色 (Neutrals)
 
-我们采用基于 8px 的间距系统，以保持布局的节奏和一致性。
+| Token | 色值 | 用途 |
+|-------|------|------|
+| `--gray-50` | `#FAFBFC` | 页面背景 |
+| `--gray-100` | `#F3F4F6` | 徽章背景 |
+| `--gray-200` | `#E5E7EB` | 边框、分割线 |
+| `--gray-300` | `#D1D5DB` | 悬停边框、禁用按钮背景 |
+| `--gray-400` | `#9CA3AF` | 占位符文字、三级文字 |
+| `--gray-500` | `#6B7280` | 二级文字、标签 |
+| `--gray-600` | `#4B5563` | — |
+| `--gray-700` | `#374151` | — |
+| `--gray-800` | `#1F2937` | 主文字 |
 
-*   `--space-1`: `4px`
-*   `--space-2`: `8px`
-*   `--space-3`: `12px`
-*   `--space-4`: `16px`
-*   `--space-5`: `20px`
-*   `--space-6`: `24px`
+### 语义色
 
-## 4. UI 组件 (UI Components)
+| 语义 | 背景 | 文字 |
+|------|------|------|
+| 成功 | `#ECFDF5` | `#047857` |
+| 错误 | `#FEF2F2` | `#B91C1C` |
+| 信息 | `#EFF6FF` | `#1D4ED8` |
+| 警告 | `#FFFBEB` | `#F59E0B` |
 
-### 按钮
+## 2. 字体排版
 
-*   **主按钮 (`#render-btn`)**: 使用 `--primary-color` 作为背景色，用于最重要的操作。
-*   **次要按钮 (`#new-slide-btn`, `#load-from-slide-btn`)**: 采用描边样式，与主按钮形成对比。
-*   **图标按钮 (`.icon-button`)**: 按钮内包含一个 16x16px 的 SVG 图标和文本，通过 Flexbox 居中对齐。
+| Token | 值 | 用途 |
+|-------|---|------|
+| `--font-sans` | Segoe UI Variable, system-ui, … | UI 文字 |
+| `--font-mono` | Cascadia Code, Fira Code, Consolas, … | 编辑器 |
+| `--text-xs` | 11px | 标签、徽章 |
+| `--text-sm` | 12px | 工具栏控件、状态栏 |
+| `--text-base` | 13px | 编辑器正文 |
+| `--text-md` | 14px | 标题 |
+| `--text-lg` | 16px | 大标题 |
+
+## 3. 间距
+
+基于 4px 的间距系统：`--sp-1` (4px) 到 `--sp-8` (32px)。
+
+## 4. 圆角
+
+| Token | 值 | 用途 |
+|-------|---|------|
+| `--radius-sm` | 4px | 小按钮、标签 |
+| `--radius-md` | 6px | 表单控件、按钮 |
+| `--radius-lg` | 8px | 卡片 |
+| `--radius-xl` | 12px | 大容器 |
+
+## 5. 阴影
+
+| Token | 用途 |
+|-------|------|
+| `--shadow-xs` | 按钮默认 |
+| `--shadow-sm` | 按钮悬停 |
+| `--shadow-md` | 弹出层 |
+| `--shadow-inner` | 输入框内阴影 |
+
+## 6. 组件
+
+### 按钮层级
+
+1. 主按钮 (`#render-btn`) — 实心蓝色，用于最重要的操作
+2. 次要按钮 (`#new-slide-btn`) — 蓝色描边
+3. 三级按钮 (`#load-from-slide-btn`) — 紫色描边
 
 ### 表单控件
 
-*   `select`, `input[type="number"]`, `input[type="color"]` 等表单控件具有统一的边框、圆角和间距。
-*   在 `:focus` 状态下，会显示蓝色的外发光轮廓，以提供清晰的交互反馈。
+- 统一 `--radius-md` 圆角
+- Focus 状态：蓝色边框 + `--color-ring` 外发光
+- 自定义 select 下拉箭头（SVG chevron）
 
 ### 图标
 
-*   我们使用了 [Feather Icons](https://feathericons.com/) 图标库，并将 SVG 直接嵌入到代码中，以减少外部依赖和网络请求。
-*   图标大小统一为 `16px x 16px`，描边宽度为 `2px`。
+- Feather Icons 风格，stroke-based
+- 按钮内 14×14px，header 内 18×18px
+- `stroke-width: 2`
+
+### 工具栏分隔符
+
+- `.toolbar-divider`：1px 宽、20px 高的竖线，分隔字体/尺寸/按钮区域
+
+### 加载覆盖层
+
+- 半透明白色背景 + `backdrop-filter: blur(2px)`
+- 旋转 spinner + 文字提示
+- 渲染过程中覆盖编辑器区域
+
+### 状态栏
+
+- 渲染中：左侧脉冲圆点动画 (`.rendering::before`)
+- 成功/错误：语义色背景 + 文字
+
+## 7. 动画
+
+| 名称 | 时长 | 用途 |
+|------|------|------|
+| `slideDown` | 350ms | 通知栏出现 |
+| `editorFlash` | 1.2s | 编辑器加载源内容 |
+| `spin` | 0.7s | 加载 spinner |
+| `pulse` | 1.2s | 状态栏渲染指示 |
+| 按钮 hover | 200ms | 所有按钮悬停过渡 |
+
+## 8. 响应式
+
+- `≤320px`：隐藏标签文字，缩小 select 宽度，按钮只显示图标
+- `≤260px`：隐藏分隔符，缩小间距

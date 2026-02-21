@@ -8,15 +8,31 @@
 </head>
 <body>
   <div id="app">
+    <!-- Header -->
+    <div class="header-bar" id="header-bar"></div>
+
+    <!-- Notification bar for detected SlideMD content -->
     <div id="source-notification">
       <span id="notification-text">检测到 SlideMD 源内容</span>
       <button id="notification-load-btn">加载到编辑器</button>
       <button class="dismiss" id="notification-dismiss">&times;</button>
     </div>
+
+    <!-- Main container with editor -->
     <div id="main-container">
-      <div id="editor-container"></div>
+      <div id="editor-container">
+        <!-- Loading overlay (shown during render) -->
+        <div class="loading-overlay" id="loading-overlay">
+          <div class="loading-spinner"></div>
+          <span class="loading-text" id="loading-text">渲染中...</span>
+        </div>
+      </div>
     </div>
+
+    <!-- Toolbar with controls -->
     <div id="toolbar"></div>
+
+    <!-- Status bar -->
     <div id="status-bar"></div>
   </div>
 </body>

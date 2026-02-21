@@ -8,6 +8,7 @@ import { transformTokens } from "../core/ast-transformer";
 import { buildSlides } from "../core/slide-builder";
 import { preloadMathFonts } from "../core/math-renderer";
 import { registerRibbonCommands } from "../commands/ribbon-commands";
+import { ICONS } from "../ui/icons";
 import {
   initSourceStore,
   saveSlideSource,
@@ -19,15 +20,26 @@ let statusBar: HTMLElement;
 let renderBtn: HTMLButtonElement | null = null;
 let editor: HTMLTextAreaElement;
 let notificationBar: HTMLElement;
+let loadingOverlay: HTMLElement;
+let loadingText: HTMLElement;
 let isPowerPoint = false;
 let fontsPreloaded = false;
 
 /** ID of the slide whose source is currently loaded in the editor */
 let activeSourceSlideId: string | null = null;
 
-function setStatus(msg: string, type: "" | "error" | "success" = "") {
+function setStatus(msg: string, type: "" | "error" | "success" | "rendering" = "") {
   statusBar.textContent = msg;
   statusBar.className = type;
+}
+
+function showLoading(msg: string) {
+  loadingText.textContent = msg;
+  loadingOverlay.classList.add("visible");
+}
+
+function hideLoading() {
+  loadingOverlay.classList.remove("visible");
 }
 
 async function handleRender() {
@@ -43,7 +55,8 @@ async function handleRender() {
   }
 
   if (renderBtn) renderBtn.disabled = true;
-  setStatus("准备字体...");
+  setStatus("准备字体...", "rendering");
+  showLoading("准备字体...");
 
   try {
     if (!fontsPreloaded) {
@@ -51,18 +64,25 @@ async function handleRender() {
       fontsPreloaded = true;
     }
 
-    setStatus("解析中...");
+    setStatus("解析中...", "rendering");
+    showLoading("解析 Markdown...");
     const tokens = parseMarkdown(markdown);
-    setStatus("转换中...");
+
+    setStatus("转换中...", "rendering");
+    showLoading("转换内容...");
     const slides = transformTokens(tokens);
 
     if (slides.length === 0) {
+      hideLoading();
       setStatus("未检测到任何内容", "error");
       return;
     }
 
     const options = getRenderOptions();
-    await buildSlides(slides, options, (msg) => setStatus(msg));
+    await buildSlides(slides, options, (msg) => {
+      setStatus(msg, "rendering");
+      showLoading(msg);
+    });
 
     try {
       const slideId = await getCurrentSlideId();
@@ -72,9 +92,11 @@ async function handleRender() {
       console.warn("Failed to save slide source:", e);
     }
 
+    hideLoading();
     setStatus("渲染完成！新内容已追加到当前幻灯片", "success");
   } catch (err: any) {
     console.error("Render error:", err);
+    hideLoading();
     setStatus(`渲染失败: ${err.message || err}`, "error");
   } finally {
     if (renderBtn) renderBtn.disabled = false;
@@ -134,7 +156,6 @@ async function checkCurrentSlideSource() {
   if (!isPowerPoint) return;
   try {
     const slideId = await getCurrentSlideId();
-    // Don't notify if this slide's source is already loaded in the editor
     if (slideId === activeSourceSlideId) {
       hideNotification();
       return;
@@ -157,6 +178,15 @@ function onSelectionChanged() {
   selectionTimer = setTimeout(() => checkCurrentSlideSource(), 300);
 }
 
+function initHeader() {
+  const header = document.getElementById("header-bar")!;
+  header.innerHTML = `
+    <div class="header-logo">${ICONS.logo}</div>
+    <span class="header-title">Slides MD</span>
+    <span class="header-badge">Markdown</span>
+  `;
+}
+
 function init() {
   initFontManager();
   initSourceStore();
@@ -169,6 +199,10 @@ function init() {
   const editorContainer = document.getElementById("editor-container")!;
   statusBar = document.getElementById("status-bar")!;
   notificationBar = document.getElementById("source-notification")!;
+  loadingOverlay = document.getElementById("loading-overlay")!;
+  loadingText = document.getElementById("loading-text")!;
+
+  initHeader();
 
   editor = createEditor(editorContainer);
 
