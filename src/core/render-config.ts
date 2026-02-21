@@ -7,30 +7,44 @@ export interface RenderQuality {
 }
 
 export const RENDER_QUALITY_PRESETS: Record<string, RenderQuality> = {
+  ultra: {
+    scale: 10,
+    dpi: 960,
+    quality: 1.0,
+    name: "超高质量",
+    description: "10x 缩放，960 DPI，无损PNG，适合专业打印和4K显示",
+  },
+  very_high: {
+    scale: 8,
+    dpi: 768,
+    quality: 1.0,
+    name: "极高质量",
+    description: "8x 缩放，768 DPI，无损PNG，适合高清打印",
+  },
   high: {
     scale: 6,
     dpi: 576,
     quality: 1.0,
     name: "高质量",
-    description: "6x 缩放，576 DPI，无损压缩，适合打印和高清显示",
+    description: "6x 缩放，576 DPI，无损PNG，适合打印和高清显示",
   },
   medium: {
     scale: 4,
     dpi: 384,
-    quality: 0.95,
+    quality: 1.0,
     name: "中等质量",
-    description: "4x 缩放，384 DPI，高质量压缩，平衡文件大小和清晰度",
+    description: "4x 缩放，384 DPI，无损PNG，平衡文件大小和清晰度",
   },
   low: {
     scale: 2,
     dpi: 192,
-    quality: 0.9,
+    quality: 1.0,
     name: "标准质量",
     description: "2x 缩放，192 DPI，适合屏幕显示",
   },
 };
 
-const DEFAULT_QUALITY_KEY = "high";
+const DEFAULT_QUALITY_KEY = "ultra";
 
 let currentQualityKey = DEFAULT_QUALITY_KEY;
 
@@ -82,6 +96,8 @@ export const HTML2CANVAS_OPTIONS = {
   scrollY: 0,
   imageTimeout: 15000,
   removeContainer: true,
+  width: undefined as number | undefined,
+  height: undefined as number | undefined,
 };
 
 export function canvasToBase64(canvas: HTMLCanvasElement, quality: number = 1.0): string {

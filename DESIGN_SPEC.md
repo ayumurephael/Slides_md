@@ -132,3 +132,36 @@
 
 - `≤320px`：隐藏标签文字，缩小 select 宽度，按钮只显示图标
 - `≤260px`：隐藏分隔符，缩小间距
+
+## 9. 渲染质量配置
+
+### 质量预设
+
+| 级别 | Scale | DPI | Quality | 适用场景 |
+|------|-------|-----|---------|---------|
+| 超高质量 | 10x | 960 | 1.0 (无损) | 专业打印、4K显示 |
+| 极高质量 | 8x | 768 | 1.0 (无损) | 高清打印 |
+| 高质量 | 6x | 576 | 1.0 (无损) | 打印、高清显示 |
+| 中等质量 | 4x | 384 | 1.0 (无损) | 平衡文件大小与清晰度 |
+| 标准质量 | 2x | 192 | 1.0 (无损) | 屏幕显示 |
+
+### 默认设置
+
+- 默认使用**超高质量** (10x scale, 960 DPI)
+- 用户选择会自动保存到 `localStorage` (`slidemd_render_quality`)
+- 所有级别均使用无损PNG格式
+
+### 渲染流程
+
+1. **字体预加载** — 确保KaTeX字体完全加载
+2. **HTML渲染** — 使用KaTeX将公式转为HTML
+3. **Canvas捕获** — 通过html2canvas以指定scale渲染
+4. **PNG导出** — 无损PNG格式输出到PowerPoint
+
+### 相关文件
+
+- `src/core/render-config.ts` — 渲染质量配置
+- `src/core/math-renderer.ts` — 数学公式渲染
+- `src/core/algorithm-renderer.ts` — 算法伪代码渲染
+- `src/core/tikz-renderer.ts` — TikZ图形渲染
+- `src/ui/toolbar.ts` — 质量选择器UI

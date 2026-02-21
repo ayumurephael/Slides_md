@@ -159,7 +159,7 @@ async function renderToCanvas(container: HTMLElement, scale: number): Promise<HT
   await ensureFontsReady();
   await waitForSpecificFonts();
   await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
-  await new Promise((r) => setTimeout(r, 150));
+  await new Promise((r) => setTimeout(r, 200));
 
   return html2canvas(container, {
     ...HTML2CANVAS_OPTIONS,
@@ -351,7 +351,7 @@ async function renderViaForeignObject(
   await ensureFontsReady();
   await waitForSpecificFonts();
   await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
-  await new Promise((r) => setTimeout(r, 150));
+  await new Promise((r) => setTimeout(r, 200));
 
   const width = container.offsetWidth;
   const height = container.offsetHeight;

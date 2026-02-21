@@ -1,6 +1,11 @@
 import { getFontState, setFontSize, setFontColor } from "../fonts/font-manager";
 import { createFontSelector } from "./font-selector";
 import { ICONS } from "./icons";
+import {
+  RENDER_QUALITY_PRESETS,
+  getCurrentRenderQuality,
+  setRenderQuality,
+} from "../core/render-config";
 
 export interface ToolbarCallbacks {
   onRender: () => void;
@@ -73,6 +78,34 @@ export function createToolbar(container: HTMLElement, callbacks: ToolbarCallback
   });
   colorGroup.appendChild(colorInput);
   row.appendChild(colorGroup);
+
+  row.appendChild(divider());
+
+  // ── Render quality selector ──
+  const qualityGroup = document.createElement("div");
+  qualityGroup.className = "toolbar-group";
+  const qualityLabel = document.createElement("label");
+  qualityLabel.textContent = "渲染质量";
+  qualityLabel.htmlFor = "render-quality";
+  qualityGroup.appendChild(qualityLabel);
+
+  const qualitySelect = document.createElement("select");
+  qualitySelect.id = "render-quality";
+  const currentQuality = getCurrentRenderQuality();
+  for (const [key, preset] of Object.entries(RENDER_QUALITY_PRESETS)) {
+    const option = document.createElement("option");
+    option.value = key;
+    option.textContent = preset.name;
+    if (preset.name === currentQuality.name) {
+      option.selected = true;
+    }
+    qualitySelect.appendChild(option);
+  }
+  qualitySelect.addEventListener("change", () => {
+    setRenderQuality(qualitySelect.value);
+  });
+  qualityGroup.appendChild(qualitySelect);
+  row.appendChild(qualityGroup);
 
   row.appendChild(divider());
 
