@@ -143,6 +143,7 @@ function createOffscreenContainer(extraStyles?: Partial<CSSStyleDeclaration>): H
   el.style.background = "white";
   el.style.padding = "8px 16px";
   el.style.whiteSpace = "nowrap";
+  el.style.overflow = "visible";
   if (extraStyles) {
     for (const [k, v] of Object.entries(extraStyles)) {
       (el.style as any)[k] = v;
@@ -174,10 +175,34 @@ async function renderToCanvas(container: HTMLElement, scale: number): Promise<HT
         clonedContainer.style.top = '0';
         clonedContainer.style.opacity = '1';
       }
-      
+
+      // Fix SVG height for KaTeX delimiters: html2canvas doesn't handle
+      // `height: inherit` correctly, so set explicit pixel heights.
+      const svgs = clonedDoc.querySelectorAll('.katex svg');
+      svgs.forEach((svg) => {
+        const parent = svg.parentElement;
+        if (parent) {
+          const parentHeight = parent.getBoundingClientRect().height || parent.offsetHeight;
+          if (parentHeight > 0) {
+            (svg as SVGElement).style.height = `${parentHeight}px`;
+          }
+        }
+      });
+
+      // Ensure no overflow clipping on delimiter containers
+      const delimContainers = clonedDoc.querySelectorAll('.delimsizing, .minner, .vlist, .vlist-t, .vlist-r');
+      delimContainers.forEach((el) => {
+        (el as HTMLElement).style.overflow = 'visible';
+      });
+
       const style = clonedDoc.createElement('style');
       style.textContent = getKatexInlineStyles();
-      clonedDoc.head.appendChild(style);
+      // Prepend so real KaTeX CSS takes precedence; inline styles are fallback only
+      if (clonedDoc.head.firstChild) {
+        clonedDoc.head.insertBefore(style, clonedDoc.head.firstChild);
+      } else {
+        clonedDoc.head.appendChild(style);
+      }
     },
   });
 }
@@ -249,27 +274,43 @@ function collectAllCSS(): string {
 
 function getKatexInlineStyles(): string {
   return `
-    .katex { font-size: 1em; line-height: 1.2; text-indent: 0; text-rendering: auto; }
-    .katex * { -ms-high-contrast-adjust: none; border-color: currentColor; }
-    .katex .katex-html { display: inline-block; }
-    .katex .base { position: relative; display: inline-block; white-space: nowrap; width: min-content; }
+    .katex { font: normal 1.21em KaTeX_Main, Times New Roman, serif; line-height: 1.2; text-indent: 0; text-rendering: auto; }
+    .katex * { -ms-high-contrast-adjust: none !important; border-color: currentColor; }
+    .katex .katex-mathml { position: absolute; clip: rect(1px,1px,1px,1px); padding: 0; border: 0; height: 1px; width: 1px; overflow: hidden; }
+    .katex .katex-html > .newline { display: block; }
+    .katex .base { position: relative; display: inline-block; white-space: nowrap; width: -webkit-min-content; width: -moz-min-content; width: min-content; }
     .katex .strut { display: inline-block; }
     .katex .textbf { font-weight: bold; }
     .katex .textit { font-style: italic; }
     .katex .textrm { font-family: KaTeX_Main; }
-    .katex .mathsf { font-family: KaTeX_SansSerif; }
-    .katex .textsf { font-family: KaTeX_SansSerif; }
-    .katex .mathbb { font-family: KaTeX_AMS; }
+    .katex .mathnormal { font-family: KaTeX_Math; font-style: italic; }
+    .katex .mathit { font-family: KaTeX_Main; font-style: italic; }
+    .katex .mathrm { font-style: normal; }
+    .katex .mathbf { font-family: KaTeX_Main; font-weight: bold; }
+    .katex .boldsymbol { font-family: KaTeX_Math; font-weight: bold; font-style: italic; }
+    .katex .amsrm { font-family: KaTeX_AMS; }
+    .katex .mainrm { font-family: KaTeX_Main; font-style: normal; }
+    .katex .mathsf, .katex .textsf { font-family: KaTeX_SansSerif; }
+    .katex .mathbb, .katex .textbb { font-family: KaTeX_AMS; }
     .katex .mathcal { font-family: KaTeX_Caligraphic; }
-    .katex .mathfrak { font-family: KaTeX_Fraktur; }
+    .katex .mathfrak, .katex .textfrak { font-family: KaTeX_Fraktur; }
+    .katex .mathboldfrak, .katex .textboldfrak { font-family: KaTeX_Fraktur; font-weight: bold; }
     .katex .mathtt { font-family: KaTeX_Typewriter; }
     .katex .texttt { font-family: KaTeX_Typewriter; }
-    .katex .mathscr { font-family: KaTeX_Script; }
+    .katex .mathscr, .katex .textscr { font-family: KaTeX_Script; }
+    .katex .mathboldsf, .katex .textboldsf { font-family: KaTeX_SansSerif; font-weight: bold; }
+    .katex .mathsfit, .katex .mathitsf, .katex .textitsf { font-family: KaTeX_SansSerif; font-style: italic; }
     .katex .vlist-t { display: inline-table; table-layout: fixed; border-collapse: collapse; }
+    .katex .vlist-t2 { margin-right: -2px; }
     .katex .vlist-r { display: table-row; }
     .katex .vlist { display: table-cell; vertical-align: bottom; position: relative; }
     .katex .vlist > span { display: block; height: 0; position: relative; }
-    .katex .mord, .katex .mbin, .katex .mrel, .katex .mopen, .katex .mclose, .katex .mpunct, .katex .mfrac, .katex .mspace, .katex .msubsup, .katex .munderover, .katex .mop, .katex .mi, .katex .mn, .katex .mo, .katex .mtext { display: inline-block; }
+    .katex .vlist > span > span { display: inline-block; }
+    .katex .vlist > span > .pstrut { overflow: hidden; width: 0; }
+    .katex .vlist-s { display: table-cell; vertical-align: bottom; font-size: 1px; width: 2px; min-width: 2px; }
+    .katex .vbox { display: inline-flex; flex-direction: column; align-items: baseline; }
+    .katex .hbox { display: inline-flex; flex-direction: row; width: 100%; }
+    .katex .thinbox { display: inline-flex; flex-direction: row; width: 0; max-width: 0; }
     .katex .msupsub { text-align: left; }
     .katex .mfrac > span > span { text-align: center; }
     .katex .mfrac .frac-line { display: inline-block; width: 100%; border-bottom-style: solid; }
@@ -282,6 +323,9 @@ function getKatexInlineStyles(): string {
     .katex .clap > .inner > span { margin-left: -50%; margin-right: 50%; }
     .katex .rule { display: inline-block; border: solid 0; position: relative; }
     .katex .overline .overline-line, .katex .underline .underline-line { display: inline-block; width: 100%; border-bottom-style: solid; }
+    .katex .hline { display: inline-block; width: 100%; border-bottom-style: solid; }
+    .katex .hdashline { display: inline-block; width: 100%; border-bottom-style: dashed; }
+    .katex .mfrac .frac-line, .katex .overline .overline-line, .katex .underline .underline-line, .katex .hline, .katex .hdashline, .katex .rule { min-height: 1px; }
     .katex .sqrt > .root { margin-left: 0.27777em; margin-right: -0.55555em; }
     .katex .sizing, .katex .fontsize-ensurer { display: inline-block; }
     .katex .sizing.reset-size1.size1, .katex .fontsize-ensurer.reset-size1.size1 { font-size: 1em; }
@@ -296,12 +340,14 @@ function getKatexInlineStyles(): string {
     .katex .sizing.reset-size1.size10, .katex .fontsize-ensurer.reset-size1.size10 { font-size: 4.148em; }
     .katex .sizing.reset-size1.size11, .katex .fontsize-ensurer.reset-size1.size11 { font-size: 4.976em; }
     .katex .delimsizing { position: relative; }
-    .katex .delimsizinginner { display: inline-block; }
-    .katex .delim-size1 { font-family: KaTeX_Size1; }
-    .katex .delim-size2 { font-family: KaTeX_Size2; }
-    .katex .delim-size3 { font-family: KaTeX_Size3; }
-    .katex .delim-size4 { font-family: KaTeX_Size4; }
-    .katex .nulldelimiter { display: inline-block; }
+    .katex .delimsizing.size1 { font-family: KaTeX_Size1; }
+    .katex .delimsizing.size2 { font-family: KaTeX_Size2; }
+    .katex .delimsizing.size3 { font-family: KaTeX_Size3; }
+    .katex .delimsizing.size4 { font-family: KaTeX_Size4; }
+    .katex .delimsizing.mult .delim-size1 > span { font-family: KaTeX_Size1; }
+    .katex .delimsizing.mult .delim-size4 > span { font-family: KaTeX_Size4; }
+    .katex .delimcenter { position: relative; }
+    .katex .nulldelimiter { display: inline-block; width: 0.12em; }
     .katex .op-symbol { position: relative; }
     .katex .op-symbol.small-op { font-family: KaTeX_Size1; }
     .katex .op-symbol.large-op { font-family: KaTeX_Size2; }
@@ -328,19 +374,62 @@ function getKatexInlineStyles(): string {
     .katex .brace-center { position: absolute; left: 25%; width: 50%; overflow: hidden; }
     .katex .brace-right { position: absolute; right: 0; width: 25.1%; overflow: hidden; }
     .katex .x-arrow-pad { padding: 0 0.5em; }
-    .katex .cd-arrow-pad { padding: 0 0.5556em; }
-    .katex .mover, .katex .munder { text-align: center; }
+    .katex .cd-arrow-pad { padding: 0 0.55556em 0 0.27778em; }
+    .katex .x-arrow, .katex .mover, .katex .munder { text-align: center; }
     .katex .boxpad { padding: 0 0.3em; }
     .katex .fbox, .katex .fcolorbox { box-sizing: border-box; border: 0.04em solid; }
     .katex .cancel-pad { padding: 0 0.2em; }
     .katex .cancel-lap { margin-left: -0.2em; margin-right: -0.2em; }
     .katex .sout { border-bottom-style: solid; border-bottom-width: 0.08em; }
-    .katex .angl { padding-right: 0.2778em; padding-left: 0; border-right: 0.049em solid; border-top: 0.049em solid; }
-    .katex .anglpad { padding: 0 0.1111em; }
+    .katex .angl { box-sizing: border-box; border-top: 0.049em solid; border-right: 0.049em solid; margin-right: 0.03889em; }
+    .katex .anglpad { padding: 0 0.03889em; }
     .katex .eqn-num::before { counter-increment: katexEqnNo; content: "(" counter(katexEqnNo) ")"; }
+    .katex .mml-eqn-num::before { counter-increment: mmlEqnNo; content: "(" counter(mmlEqnNo) ")"; }
+    .katex .mtr-glue { width: 50%; }
+    .katex .cd-vert-arrow { display: inline-block; position: relative; }
+    .katex .cd-label-left { display: inline-block; position: absolute; right: calc(50% + 0.3em); text-align: left; }
+    .katex .cd-label-right { display: inline-block; position: absolute; left: calc(50% + 0.3em); text-align: right; }
+    .katex-display { display: block; margin: 1em 0; text-align: center; }
+    .katex-display > .katex { display: block; text-align: center; white-space: nowrap; }
+    .katex-display > .katex > .katex-html { display: block; position: relative; }
+    .katex-display > .katex > .katex-html > .tag { position: absolute; right: 0; }
+    .katex-display.leqno > .katex > .katex-html > .tag { left: 0; right: auto; }
+    .katex-display.fleqn > .katex { text-align: left; padding-left: 2em; }
     .katex .mlabel { position: relative; }
     .katex .mtable .mlabel { position: static; }
-    .katex-eqn-num { counter-reset: katexEqnNo; }
+    body { counter-reset: katexEqnNo mmlEqnNo; }
+
+    /* --- SlideMD fixes --- */
+
+    /* Fix inline math font size: KaTeX defaults to 1.21em which makes inline
+       math ~21% larger than surrounding text. Normalize to 1em inside mixed
+       text+math paragraphs so they visually match. */
+    .slidemd-mixed > .katex { font-size: 1em; }
+    /* Keep display-mode math ($$...$$) at the standard KaTeX size */
+    .slidemd-mixed > .katex-display > .katex { font-size: 1.21em; }
+
+    /* Ensure inline KaTeX aligns well with surrounding text baseline */
+    .slidemd-mixed > .katex { vertical-align: -0.125em; }
+    .slidemd-mixed > .katex-display { vertical-align: baseline; }
+
+    /* Fix matrix delimiter overflow: prevent clipping of tall brackets */
+    .katex .delimsizing { overflow: visible !important; }
+    .katex .minner { overflow: visible !important; }
+    .katex .vlist { overflow: visible !important; }
+    .katex .vlist-t { overflow: visible !important; }
+    .katex .vlist-r { overflow: visible !important; }
+    .katex .vlist-s { overflow: visible !important; }
+
+    /* Ensure SVG delimiters inherit proper height */
+    .katex .delimsizing svg,
+    .katex .stretchy svg {
+      height: 100% !important;
+      overflow: visible !important;
+    }
+
+    /* Ensure stacked delimiter pieces are visible */
+    .katex .delimsizing.mult { overflow: visible !important; }
+    .katex .delimsizing.mult .vlist > span { overflow: visible !important; }
   `;
 }
 
@@ -446,6 +535,7 @@ export async function renderMath(
     const container = createOffscreenContainer({
       fontSize: `${fontSize}pt`,
       lineHeight: "1.4",
+      padding: "12px 20px",
     });
     document.body.appendChild(container);
 
@@ -534,6 +624,7 @@ export async function renderMixedParagraph(
       maxWidth: `${maxWidthPx}px`,
       whiteSpace: "normal",
     });
+    container.classList.add("slidemd-mixed");
     document.body.appendChild(container);
 
     try {
