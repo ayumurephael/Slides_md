@@ -1,10 +1,20 @@
 import { getFontState, setFontSize, setFontColor } from "../fonts/font-manager";
 import { createFontSelector } from "./font-selector";
+import { ICONS } from "./icons";
 
 export interface ToolbarCallbacks {
   onRender: () => void;
   onNewSlide: () => void;
   onLoadFromSlide: () => void;
+}
+
+function createIconButton(id: string, icon: string, text: string, callback: () => void): HTMLButtonElement {
+  const btn = document.createElement("button");
+  btn.id = id;
+  btn.className = "icon-button";
+  btn.innerHTML = `${icon}<span>${text}</span>`;
+  btn.addEventListener("click", callback);
+  return btn;
 }
 
 /** Create toolbar with all controls in a single horizontal row. */
@@ -57,25 +67,14 @@ export function createToolbar(container: HTMLElement, callbacks: ToolbarCallback
   colorGroup.appendChild(colorInput);
   row.appendChild(colorGroup);
 
-  // Load from slide button
-  const loadBtn = document.createElement("button");
-  loadBtn.id = "load-from-slide-btn";
-  loadBtn.textContent = "从幻灯片加载";
-  loadBtn.addEventListener("click", callbacks.onLoadFromSlide);
+  // Buttons
+  const loadBtn = createIconButton("load-from-slide-btn", ICONS.load, "从幻灯片加载", callbacks.onLoadFromSlide);
   row.appendChild(loadBtn);
 
-  // New slide button
-  const newSlideBtn = document.createElement("button");
-  newSlideBtn.id = "new-slide-btn";
-  newSlideBtn.textContent = "新建空白幻灯片";
-  newSlideBtn.addEventListener("click", callbacks.onNewSlide);
+  const newSlideBtn = createIconButton("new-slide-btn", ICONS.newSlide, "新建空白幻灯片", callbacks.onNewSlide);
   row.appendChild(newSlideBtn);
 
-  // Render button
-  const renderBtn = document.createElement("button");
-  renderBtn.id = "render-btn";
-  renderBtn.textContent = "渲染到幻灯片";
-  renderBtn.addEventListener("click", callbacks.onRender);
+  const renderBtn = createIconButton("render-btn", ICONS.render, "渲染到幻灯片", callbacks.onRender);
   row.appendChild(renderBtn);
 
   toolbar.appendChild(row);
