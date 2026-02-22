@@ -9,7 +9,12 @@
 <body>
   <div id="app">
     <!-- Header -->
-    <div class="header-bar" id="header-bar"></div>
+    <div class="header-bar" id="header-bar">
+      <div class="header-logo">
+        <img src="../../assets/logo-filled.png" alt="Slides.md Logo" />
+        <h1>Slides.md</h1>
+      </div>
+    </div>
 
     <!-- Notification bar for detected SlideMD content -->
     <div id="source-notification">
@@ -33,7 +38,16 @@
     <div id="toolbar"></div>
 
     <!-- Status bar -->
-    <div id="status-bar"></div>
+    <div id="status-bar">
+      <div id="status-info" class="status-info">
+        <span id="char-count">0 字符</span>
+        <span class="status-divider"></span>
+        <span id="word-count">0 词</span>
+        <span class="status-divider"></span>
+        <span id="line-count">0 行</span>
+      </div>
+      <div id="app-version" class="app-version">v1.0.0</div>
+    </div>
   </div>
 </body>
 </html>

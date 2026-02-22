@@ -408,8 +408,20 @@ function getKatexInlineStyles(): string {
     /* Keep display-mode math ($$...$$) at the standard KaTeX size */
     .slidemd-mixed > .katex-display > .katex { font-size: 1.21em; }
 
-    /* Ensure inline KaTeX aligns well with surrounding text baseline */
-    .slidemd-mixed > .katex { vertical-align: -0.125em; }
+    /* Baseline alignment for inline KaTeX with CJK text.
+       KaTeX_Main has a larger descender than CJK fonts like 微软雅黑,
+       causing math to appear shifted downward. Use vertical-align: middle
+       with a small negative margin to align the math axis (center of x-height)
+       with the CJK glyph center, then fine-tune with relative positioning. */
+    .slidemd-mixed > .katex {
+      vertical-align: -0.2ex;
+      position: relative;
+      top: -0.1ex;
+    }
+    /* Unify line-height so strut calculations don't fight the container */
+    .slidemd-mixed > .katex .base {
+      line-height: inherit;
+    }
     .slidemd-mixed > .katex-display { vertical-align: baseline; }
 
     /* Fix matrix delimiter overflow: prevent clipping of tall brackets */
@@ -591,6 +603,64 @@ export async function renderMath(
 }
 
 /**
+ * Dynamically calibrate inline math baseline alignment.
+ *
+ * Measures the actual baseline difference between the container's body font
+ * and KaTeX_Main by rendering a probe element, then applies per-element
+ * corrections to all inline .katex elements in the container.
+ *
+ * This handles the fundamental problem that CJK fonts (e.g. 微软雅黑) and
+ * KaTeX_Main have very different ascender/descender ratios, making CSS
+ * `vertical-align: baseline` visually misaligned.
+ */
+function calibrateInlineMathBaseline(
+  container: HTMLElement,
+  fontFamily: string,
+  fontSize: number
+): void {
+  // Create a probe to measure baseline positions of both fonts
+  const probe = document.createElement("span");
+  probe.style.cssText = `
+    position: absolute; left: 0; top: 0; opacity: 0; pointer-events: none;
+    font-size: ${fontSize}pt; line-height: 1.6; white-space: nowrap;
+  `;
+  // Use an inline-block span for each font to measure their baselines
+  probe.innerHTML = `
+    <span id="__sm_probe_text" style="font-family: ${fontFamily}, sans-serif; display: inline;">Ag中文</span>
+    <span id="__sm_probe_math" style="font-family: KaTeX_Main, serif; display: inline; font-size: 1em;">Ag</span>
+  `;
+  container.appendChild(probe);
+
+  const textEl = probe.querySelector("#__sm_probe_text") as HTMLElement;
+  const mathEl = probe.querySelector("#__sm_probe_math") as HTMLElement;
+
+  if (textEl && mathEl) {
+    const textRect = textEl.getBoundingClientRect();
+    const mathRect = mathEl.getBoundingClientRect();
+
+    // The baseline offset is approximated by comparing the bottom edges
+    // of the two font probes (since both sit on the same baseline,
+    // the difference in bottom position reflects descender difference).
+    const baselineDiff = mathRect.bottom - textRect.bottom;
+
+    // Only apply correction if the difference is meaningful (> 0.5px)
+    if (Math.abs(baselineDiff) > 0.5) {
+      const katexElements = container.querySelectorAll(":scope > .katex");
+      katexElements.forEach((el) => {
+        const htmlEl = el as HTMLElement;
+        // Shift the KaTeX element up by the measured baseline difference
+        htmlEl.style.position = "relative";
+        htmlEl.style.top = `${-baselineDiff}px`;
+        // Reset the CSS vertical-align since we're using position correction
+        htmlEl.style.verticalAlign = "baseline";
+      });
+    }
+  }
+
+  container.removeChild(probe);
+}
+
+/**
  * Render a mixed paragraph (text + inline math) as a single high-res PNG.
  * Uses html2canvas with SVG foreignObject fallback.
  */
@@ -632,6 +702,13 @@ export async function renderMixedParagraph(
 
       await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
       await new Promise((r) => setTimeout(r, 50));
+
+      // Dynamic baseline calibration: measure the actual baseline offset
+      // between the body font and KaTeX elements, then apply correction.
+      calibrateInlineMathBaseline(container, fontFamily, fontSize);
+
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+      await new Promise((r) => setTimeout(r, 30));
 
       let canvas: HTMLCanvasElement;
       try {
