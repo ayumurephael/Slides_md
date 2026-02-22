@@ -3,7 +3,9 @@
     "allow": [
       "Bash(ls:*)",
       "mcp__ide__getDiagnostics",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npx webpack:*)"
     ]
   }
 }

@@ -9,12 +9,7 @@
 <body>
   <div id="app">
     <!-- Header -->
-    <div class="header-bar" id="header-bar">
-      <div class="header-logo">
-        <img src="../../assets/logo-filled.png" alt="Slides.md Logo" />
-        <h1>Slides.md</h1>
-      </div>
-    </div>
+    <div class="header-bar" id="header-bar"></div>
 
     <!-- Notification bar for detected SlideMD content -->
     <div id="source-notification">
@@ -23,11 +18,10 @@
       <button class="dismiss" id="notification-dismiss">&times;</button>
     </div>
 
-    <!-- Slide navigator panel -->
-    <div id="slide-navigator-container"></div>
-
     <!-- Main container with editor -->
     <div id="main-container">
+      <!-- Slide navigator panel -->
+      <div id="slide-navigator-container"></div>
       <div id="editor-container">
         <!-- Loading overlay (shown during render) -->
         <div class="loading-overlay" id="loading-overlay">
@@ -41,16 +35,7 @@
     <div id="toolbar"></div>
 
     <!-- Status bar -->
-    <div id="status-bar">
-      <div id="status-info" class="status-info">
-        <span id="char-count">Chars: 0</span>
-        <span class="status-divider"></span>
-        <span id="word-count">Words: 0</span>
-        <span class="status-divider"></span>
-        <span id="line-count">Lines: 0</span>
-      </div>
-      <div id="app-version" class="app-version">v1.0.0</div>
-    </div>
+    <div id="status-bar"></div>
   </div>
 </body>
 </html>
