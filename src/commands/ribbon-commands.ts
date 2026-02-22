@@ -4,10 +4,10 @@
  */
 import { setZhFont, setEnFont } from "../fonts/font-manager";
 import { renderMarkdownIncremental } from "../core/slide-builder";
+import { getGlobalEditorValue } from "../ui/editor-state";
 
 export async function ribbonRender(): Promise<void> {
-  const editor = document.getElementById("md-editor") as HTMLTextAreaElement | null;
-  const markdown = editor?.value?.trim();
+  const markdown = getGlobalEditorValue().trim();
   if (!markdown) return;
 
   try {

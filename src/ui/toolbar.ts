@@ -11,6 +11,7 @@ export interface ToolbarCallbacks {
   onRender: () => void;
   onNewSlide: () => void;
   onLoadFromSlide: () => void;
+  onSyncAll?: () => void;
 }
 
 function createIconButton(
@@ -47,7 +48,7 @@ export function createToolbar(container: HTMLElement, callbacks: ToolbarCallback
 
   row.appendChild(divider());
 
-  // ── Font size ──
+  // ── Font size (stepper) ──
   const sizeGroup = document.createElement("div");
   sizeGroup.className = "toolbar-group";
   const sizeLabel = document.createElement("label");
@@ -55,16 +56,52 @@ export function createToolbar(container: HTMLElement, callbacks: ToolbarCallback
   sizeLabel.htmlFor = "font-size";
   sizeGroup.appendChild(sizeLabel);
 
+  const stepper = document.createElement("div");
+  stepper.className = "stepper";
+
   const sizeInput = document.createElement("input");
   sizeInput.type = "number";
   sizeInput.id = "font-size";
   sizeInput.min = "8";
   sizeInput.max = "72";
   sizeInput.value = String(getFontState().fontSize);
-  sizeInput.addEventListener("change", () => {
-    setFontSize(parseInt(sizeInput.value, 10) || 18);
+
+  const applySize = () => {
+    const v = Math.min(72, Math.max(8, parseInt(sizeInput.value, 10) || 18));
+    sizeInput.value = String(v);
+    setFontSize(v);
+  };
+  sizeInput.addEventListener("change", applySize);
+  sizeInput.addEventListener("input", applySize);
+  stepper.appendChild(sizeInput);
+
+  const arrows = document.createElement("div");
+  arrows.className = "stepper-arrows";
+
+  const upBtn = document.createElement("button");
+  upBtn.type = "button";
+  upBtn.className = "stepper-btn stepper-up";
+  upBtn.tabIndex = -1;
+  upBtn.innerHTML = `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>`;
+  upBtn.addEventListener("click", () => {
+    const cur = parseInt(sizeInput.value, 10) || 18;
+    if (cur < 72) { sizeInput.value = String(cur + 1); applySize(); }
   });
-  sizeGroup.appendChild(sizeInput);
+
+  const downBtn = document.createElement("button");
+  downBtn.type = "button";
+  downBtn.className = "stepper-btn stepper-down";
+  downBtn.tabIndex = -1;
+  downBtn.innerHTML = `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>`;
+  downBtn.addEventListener("click", () => {
+    const cur = parseInt(sizeInput.value, 10) || 18;
+    if (cur > 8) { sizeInput.value = String(cur - 1); applySize(); }
+  });
+
+  arrows.appendChild(upBtn);
+  arrows.appendChild(downBtn);
+  stepper.appendChild(arrows);
+  sizeGroup.appendChild(stepper);
   row.appendChild(sizeGroup);
 
   // ── Font color ──

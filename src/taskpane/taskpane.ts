@@ -1,6 +1,8 @@
 import "./taskpane.css";
 import "katex/dist/katex.min.css";
 import { createEditor } from "../ui/editor";
+import type { EditorAdapter } from "../ui/editor";
+import { setGlobalEditor } from "../ui/editor-state";
 import { createToolbar } from "../ui/toolbar";
 import { initFontManager } from "../fonts/font-manager";
 import { renderMarkdownIncremental } from "../core/slide-builder";
@@ -12,14 +14,18 @@ import {
   loadSlideSource,
   getCurrentSlideId,
 } from "../core/source-store";
+import { createSlideNavigator, parseSlideSections } from "../ui/slide-navigator";
+import type { SlideNavigatorController } from "../ui/slide-navigator";
+import { syncAllSlides } from "../core/slide-sync";
 
 let statusBar: HTMLElement;
 let renderBtn: HTMLButtonElement | null = null;
-let editor: HTMLTextAreaElement;
+let editor: EditorAdapter;
 let notificationBar: HTMLElement;
 let loadingOverlay: HTMLElement;
 let loadingText: HTMLElement;
 let isPowerPoint = false;
+let navigator: SlideNavigatorController | null = null;
 
 /** ID of the slide whose source is currently loaded in the editor */
 let activeSourceSlideId: string | null = null;
@@ -44,7 +50,7 @@ async function handleRender() {
     return;
   }
 
-  const markdown = editor.value.trim();
+  const markdown = editor.getValue().trim();
   if (!markdown) {
     setStatus("请先输入 Markdown 内容", "error");
     return;
@@ -86,15 +92,71 @@ async function handleRender() {
   }
 }
 
-function handleNewSlide() {
-  const pos = editor.selectionStart;
-  const before = editor.value.substring(0, pos);
-  const after = editor.value.substring(editor.selectionEnd);
+async function handleNewSlide() {
+  // Insert --- separator in editor
+  const { from, to } = editor.getSelection();
+  const doc = editor.getValue();
+  const before = doc.substring(0, from);
+  const after = doc.substring(to);
   const separator = "\n\n---\n\n";
-  editor.value = before + separator + after;
-  const newPos = pos + separator.length;
-  editor.selectionStart = editor.selectionEnd = newPos;
+  editor.setValue(before + separator + after);
   editor.focus();
+
+  // Update navigator
+  navigator?.update(editor.getValue());
+
+  // Also insert a blank slide in PowerPoint if available
+  if (isPowerPoint) {
+    try {
+      if (Office.context.requirements.isSetSupported("PowerPointApi", "1.5")) {
+        await PowerPoint.run(async (ctx) => {
+          ctx.presentation.slides.add();
+          await ctx.sync();
+        });
+        setStatus("已插入分隔符和新幻灯片", "success");
+      }
+    } catch (err: any) {
+      console.warn("Could not insert PowerPoint slide:", err);
+      setStatus(`分隔符已插入，但创建幻灯片失败: ${err.message || err}`, "error");
+    }
+  }
+}
+
+async function handleSyncAll() {
+  if (!isPowerPoint) {
+    setStatus("同步功能需在 PowerPoint 中使用", "error");
+    return;
+  }
+
+  const markdown = editor.getValue().trim();
+  if (!markdown) {
+    setStatus("请先输入 Markdown 内容", "error");
+    return;
+  }
+
+  setStatus("同步全部幻灯片...", "rendering");
+  showLoading("同步全部幻灯片...");
+
+  try {
+    const progress = (msg: string) => {
+      setStatus(msg, "rendering");
+      showLoading(msg);
+    };
+
+    const result = await syncAllSlides(markdown, progress);
+
+    hideLoading();
+    const parts: string[] = [];
+    if (result.created > 0) parts.push(`创建 ${result.created}`);
+    if (result.updated > 0) parts.push(`更新 ${result.updated}`);
+    if (result.deleted > 0) parts.push(`删除 ${result.deleted}`);
+    if (result.unchanged > 0) parts.push(`未变 ${result.unchanged}`);
+    setStatus(`同步完成: ${parts.join(", ")} (共 ${result.totalSections} 张)`, "success");
+  } catch (err: any) {
+    console.error("Sync error:", err);
+    hideLoading();
+    setStatus(`同步失败: ${err.message || err}`, "error");
+  }
 }
 
 /** Load stored Markdown source from the current slide into the editor */
@@ -108,12 +170,13 @@ async function handleLoadFromSlide() {
     const slideId = await getCurrentSlideId();
     const source = loadSlideSource(slideId);
     if (source) {
-      editor.value = source;
+      editor.setValue(source);
       activeSourceSlideId = slideId;
       // Visual feedback: flash the editor border
-      editor.classList.remove("source-loaded");
-      void editor.offsetWidth; // force reflow to restart animation
-      editor.classList.add("source-loaded");
+      const el = editor.getContainer();
+      el.classList.remove("source-loaded");
+      void el.offsetWidth; // force reflow to restart animation
+      el.classList.add("source-loaded");
       editor.focus();
       hideNotification();
       setStatus("已从幻灯片加载源内容，可编辑后重新渲染", "success");
@@ -187,6 +250,28 @@ function init() {
   initHeader();
 
   editor = createEditor(editorContainer);
+  setGlobalEditor(editor);
+
+  // Create slide navigator
+  const navigatorContainer = document.getElementById("slide-navigator-container")!;
+  navigator = createSlideNavigator(navigatorContainer, editor, handleSyncAll);
+
+  // Update navigator on content change
+  editor.onContentChange(() => {
+    navigator?.update(editor.getValue());
+  });
+
+  // Highlight active section on cursor move
+  editor.onCursorChange((offset) => {
+    const md = editor.getValue();
+    const sections = parseSlideSections(md);
+    for (let i = sections.length - 1; i >= 0; i--) {
+      if (offset >= sections[i].startOffset) {
+        navigator?.setActiveSection(i);
+        break;
+      }
+    }
+  });
 
   createToolbar(toolbarContainer, {
     onRender: handleRender,

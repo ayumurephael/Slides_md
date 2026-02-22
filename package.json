@@ -11,6 +11,12 @@
     "test": "jest"
   },
   "dependencies": {
+    "@codemirror/commands": "^6.10.2",
+    "@codemirror/lang-markdown": "^6.5.0",
+    "@codemirror/language": "^6.12.1",
+    "@codemirror/language-data": "^6.5.2",
+    "@codemirror/state": "^6.5.4",
+    "@codemirror/view": "^6.39.15",
     "html2canvas": "^1.4.1",
     "katex": "^0.16.11",
     "markdown-it": "^14.1.0",

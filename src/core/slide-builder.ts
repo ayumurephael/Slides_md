@@ -1101,3 +1101,143 @@ export async function renderMarkdownIncremental(
   await saveSlideSource(slideId, markdown);
   return { kind: "incremental", deletedCount };
 }
+
+/** Clear all SlideMD shapes on a specific slide (by ID) */
+export async function clearSlideMDShapesOnSlide(slideId: string): Promise<number> {
+  let deletedCount = 0;
+  await PowerPoint.run(async (context) => {
+    const slide = context.presentation.slides.getItem(slideId);
+    slide.shapes.load("items/name");
+    await context.sync();
+
+    const shapesToDelete: PowerPoint.Shape[] = [];
+    for (const shape of slide.shapes.items) {
+      const name = shape.name || "";
+      if (name.startsWith(SHAPE_NAME_PREFIX)) {
+        shapesToDelete.push(shape);
+      }
+    }
+
+    for (const shape of shapesToDelete) {
+      shape.delete();
+      deletedCount++;
+    }
+
+    if (deletedCount > 0) {
+      await context.sync();
+    }
+  });
+  return deletedCount;
+}
+
+/**
+ * Build slide content on a SPECIFIC slide (by ID) from a single SlideIR.
+ * Used by syncAllSlides to render each section onto its target slide.
+ */
+export async function buildSingleSlide(
+  slideIR: SlideIR,
+  options: RenderOptions,
+  targetSlideId: string,
+  onProgress?: ProgressCallback
+): Promise<BuildResult> {
+  if (slideIR.elements.length === 0) return { nextYs: [] };
+
+  const allElements = slideIR.elements;
+
+  onProgress?.("渲染公式和图片...");
+  const pendingImages: { base64: string; left: number; top: number; width: number; height: number; elementIndex: number }[] = [];
+  const elementResults: { result: ElementResult; elementIndex: number }[] = [];
+  const nextYs: number[] = [];
+  let cursorY = SLIDE.MARGIN_TOP;
+
+  for (let i = 0; i < allElements.length; i++) {
+    const images: PendingImage[] = [];
+    const result = await prepareElement(allElements[i], cursorY, options, images);
+    elementResults.push({ result, elementIndex: i });
+    for (const img of images) {
+      pendingImages.push({ ...img, elementIndex: i });
+    }
+    nextYs[i] = result.nextY;
+    cursorY = result.nextY;
+  }
+
+  onProgress?.("添加文本内容...");
+
+  const shapeCountPerElement = new Map<number, number>();
+  const imageCountPerElement = new Map<number, number>();
+
+  await PowerPoint.run(async (context) => {
+    const slide = context.presentation.slides.getItem(targetSlideId);
+
+    for (const { result, elementIndex } of elementResults) {
+      let shapeCount = 0;
+      for (const op of result.shapeOps) {
+        op(slide, context);
+        shapeCount++;
+      }
+      shapeCountPerElement.set(elementIndex, shapeCount);
+    }
+    await context.sync();
+
+    slide.shapes.load("items/name");
+    await context.sync();
+
+    const unnamed: PowerPoint.Shape[] = [];
+    for (const shape of slide.shapes.items) {
+      const name = shape.name || "";
+      if (!name.startsWith(SHAPE_NAME_PREFIX)) {
+        unnamed.push(shape);
+      }
+    }
+
+    let unnamedIdx = 0;
+    for (const { elementIndex } of elementResults) {
+      const count = shapeCountPerElement.get(elementIndex) || 0;
+      for (let s = 0; s < count; s++) {
+        if (unnamedIdx < unnamed.length) {
+          unnamed[unnamedIdx].name = `${SHAPE_NAME_PREFIX}e${elementIndex}_s${s}`;
+          unnamedIdx++;
+        }
+      }
+    }
+    await context.sync();
+  });
+
+  if (pendingImages.length > 0) {
+    onProgress?.("插入图片...");
+
+    for (const img of pendingImages) {
+      const elemIdx = img.elementIndex;
+      const imgIdx = imageCountPerElement.get(elemIdx) || 0;
+      imageCountPerElement.set(elemIdx, imgIdx + 1);
+
+      // Use PowerPoint API to insert image on specific slide
+      await PowerPoint.run(async (context) => {
+        const slide = context.presentation.slides.getItem(targetSlideId);
+        const dataUrl = `data:image/png;base64,${img.base64}`;
+        slide.shapes.addImage(dataUrl, {
+          left: img.left,
+          top: img.top,
+          width: img.width,
+          height: img.height,
+        });
+        await context.sync();
+
+        // Name the image shape
+        slide.shapes.load("items/name");
+        await context.sync();
+        const items = slide.shapes.items;
+        for (let j = items.length - 1; j >= 0; j--) {
+          const name = items[j].name || "";
+          if (!name.startsWith(SHAPE_NAME_PREFIX)) {
+            items[j].name = `${SHAPE_NAME_PREFIX}e${elemIdx}_i${imgIdx}`;
+            break;
+          }
+        }
+        await context.sync();
+      });
+    }
+  }
+
+  return { nextYs };
+}

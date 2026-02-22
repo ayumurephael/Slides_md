@@ -151,6 +151,12 @@ export const DEFAULT_RENDER_OPTIONS: RenderOptions = {
   enFontFamily: "Calibri",
 };
 
+/** Mapping between markdown sections and PowerPoint slide IDs */
+export interface SlideMapping {
+  sectionToSlideId: string[];      // index = markdown section index, value = slide ID
+  sectionFingerprints: string[];   // per-section fingerprint for change detection
+}
+
 /** 数学公式渲染结果 */
 export interface MathRenderResult {
   base64: string; // data:image/png;base64,...

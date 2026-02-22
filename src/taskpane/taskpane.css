@@ -305,6 +305,130 @@ body {
 }
 
 /* ============================================================
+   Slide Navigator
+   ============================================================ */
+.slide-navigator {
+  display: flex;
+  flex-direction: column;
+  border-bottom: 1px solid var(--color-border);
+  max-height: 180px;
+  flex-shrink: 0;
+  background: var(--color-surface);
+}
+
+.slide-nav-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--sp-1_5) var(--sp-3);
+  background: var(--gray-50);
+  border-bottom: 1px solid var(--color-border);
+  gap: var(--sp-2);
+  flex-shrink: 0;
+}
+
+.slide-nav-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--color-text);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  font-family: var(--font-sans);
+  padding: var(--sp-0_5) var(--sp-1);
+  border-radius: var(--radius-xs);
+  transition: background var(--duration-fast);
+}
+
+.slide-nav-toggle:hover {
+  background: var(--gray-100);
+}
+
+.slide-nav-toggle svg {
+  width: 14px;
+  height: 14px;
+  transition: transform var(--duration-normal) var(--ease-out);
+  flex-shrink: 0;
+}
+
+.slide-navigator.collapsed .slide-nav-toggle svg {
+  transform: rotate(-90deg);
+}
+
+.slide-nav-sync-btn {
+  height: 24px !important;
+  font-size: var(--text-2xs) !important;
+  padding: var(--sp-0_5) var(--sp-2) !important;
+}
+
+.slide-nav-sync-btn svg {
+  width: 12px;
+  height: 12px;
+}
+
+.slide-nav-list {
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+
+.slide-navigator.collapsed .slide-nav-list {
+  display: none;
+}
+
+.slide-nav-item {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-1_5) var(--sp-3);
+  cursor: pointer;
+  transition: background var(--duration-fast);
+  border-left: 3px solid transparent;
+  font-size: var(--text-sm);
+  color: var(--color-text);
+}
+
+.slide-nav-item:hover {
+  background: var(--gray-50);
+}
+
+.slide-nav-item.active {
+  background: var(--primary-50);
+  border-left-color: var(--primary-500);
+  color: var(--primary-700);
+}
+
+.slide-nav-index {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: var(--radius-sm);
+  background: var(--gray-100);
+  color: var(--gray-500);
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.slide-nav-item.active .slide-nav-index {
+  background: var(--primary-100);
+  color: var(--primary-600);
+}
+
+.slide-nav-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+
+/* ============================================================
    Main Container & Editor
    ============================================================ */
 #main-container {
@@ -327,33 +451,29 @@ body {
 
 #md-editor {
   flex: 1;
-  width: 100%;
-  padding: var(--sp-4);
-  border: none;
-  outline: none;
-  resize: none;
-  font-family: var(--font-mono);
-  font-size: var(--text-base);
-  line-height: var(--leading-relaxed);
-  color: var(--gray-700);
-  background: var(--color-surface);
-  tab-size: 2;
-  caret-color: var(--primary-500);
-  transition: background var(--duration-normal);
-  overflow-y: scroll;
-  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
 }
 
-#md-editor::placeholder {
-  color: var(--gray-400);
-  font-family: var(--font-sans);
-  font-size: var(--text-sm);
-  line-height: var(--leading-relaxed);
+/* CodeMirror overrides */
+#md-editor .cm-editor {
+  flex: 1;
+  overflow: hidden;
 }
 
-#md-editor:focus {
-  background: #FAFBFF;
+#md-editor .cm-scroller {
+  overflow: auto;
 }
+
+#md-editor .cm-scroller::-webkit-scrollbar { width: 5px; }
+#md-editor .cm-scroller::-webkit-scrollbar-track { background: transparent; }
+#md-editor .cm-scroller::-webkit-scrollbar-thumb {
+  background: var(--gray-300);
+  border-radius: var(--radius-full);
+}
+#md-editor .cm-scroller::-webkit-scrollbar-thumb:hover { background: var(--gray-400); }
 
 /* Editor flash animation on source load */
 @keyframes editorFlash {
