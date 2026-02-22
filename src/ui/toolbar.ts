@@ -17,16 +17,14 @@ function createIconButton(
   id: string,
   icon: string,
   text: string,
-  btnClass: string,
-  callback: () => void,
-  tooltip?: string
+  btnClass: string, // e.g., 'btn-primary'
+  callback: () => void
 ): HTMLButtonElement {
   const btn = document.createElement("button");
   btn.id = id;
   btn.className = `btn ${btnClass}`;
   btn.innerHTML = `${icon}<span>${text}</span>`;
   btn.addEventListener("click", callback);
-  if (tooltip) btn.setAttribute("data-tooltip", tooltip);
   return btn;
 }
 
@@ -49,7 +47,7 @@ export function createToolbar(container: HTMLElement, callbacks: ToolbarCallback
 
   row.appendChild(divider());
 
-  // ── Font size (custom stepper) ──
+  // ── Font size ──
   const sizeGroup = document.createElement("div");
   sizeGroup.className = "toolbar-group";
   const sizeLabel = document.createElement("label");
@@ -57,58 +55,16 @@ export function createToolbar(container: HTMLElement, callbacks: ToolbarCallback
   sizeLabel.htmlFor = "font-size";
   sizeGroup.appendChild(sizeLabel);
 
-  const stepperWrap = document.createElement("div");
-  stepperWrap.className = "stepper";
-
   const sizeInput = document.createElement("input");
   sizeInput.type = "number";
   sizeInput.id = "font-size";
   sizeInput.min = "8";
   sizeInput.max = "72";
   sizeInput.value = String(getFontState().fontSize);
-
-  const applySize = () => {
-    const v = Math.min(72, Math.max(8, parseInt(sizeInput.value, 10) || 18));
-    sizeInput.value = String(v);
-    setFontSize(v);
-  };
-
-  sizeInput.addEventListener("change", applySize);
-
-  const btnUp = document.createElement("button");
-  btnUp.type = "button";
-  btnUp.className = "stepper-btn stepper-up";
-  btnUp.innerHTML = '<svg width="10" height="10" viewBox="0 0 10 10"><polyline points="2,7 5,3 8,7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-  btnUp.tabIndex = -1;
-  btnUp.addEventListener("click", () => {
-    const cur = parseInt(sizeInput.value, 10) || 18;
-    if (cur < 72) {
-      sizeInput.value = String(cur + 1);
-      applySize();
-    }
+  sizeInput.addEventListener("change", () => {
+    setFontSize(parseInt(sizeInput.value, 10) || 18);
   });
-
-  const btnDown = document.createElement("button");
-  btnDown.type = "button";
-  btnDown.className = "stepper-btn stepper-down";
-  btnDown.innerHTML = '<svg width="10" height="10" viewBox="0 0 10 10"><polyline points="2,3 5,7 8,3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-  btnDown.tabIndex = -1;
-  btnDown.addEventListener("click", () => {
-    const cur = parseInt(sizeInput.value, 10) || 18;
-    if (cur > 8) {
-      sizeInput.value = String(cur - 1);
-      applySize();
-    }
-  });
-
-  stepperWrap.appendChild(sizeInput);
-  const arrowBox = document.createElement("div");
-  arrowBox.className = "stepper-arrows";
-  arrowBox.appendChild(btnUp);
-  arrowBox.appendChild(btnDown);
-  stepperWrap.appendChild(arrowBox);
-
-  sizeGroup.appendChild(stepperWrap);
+  sizeGroup.appendChild(sizeInput);
   row.appendChild(sizeGroup);
 
   // ── Font color ──
@@ -135,7 +91,7 @@ export function createToolbar(container: HTMLElement, callbacks: ToolbarCallback
   const qualityGroup = document.createElement("div");
   qualityGroup.className = "toolbar-group";
   const qualityLabel = document.createElement("label");
-  qualityLabel.textContent = "质量";
+  qualityLabel.textContent = "渲染质量";
   qualityLabel.htmlFor = "render-quality";
   qualityGroup.appendChild(qualityLabel);
 
@@ -165,30 +121,21 @@ export function createToolbar(container: HTMLElement, callbacks: ToolbarCallback
     ICONS.load,
     "加载",
     "btn-tertiary",
-    callbacks.onLoadFromSlide,
-    "从幻灯片加载源码"
+    callbacks.onLoadFromSlide
   );
   row.appendChild(loadBtn);
 
   const newSlideBtn = createIconButton(
     "new-slide-btn",
     ICONS.newSlide,
-    "新建",
+    "新幻灯片",
     "btn-secondary",
-    callbacks.onNewSlide,
-    "插入幻灯片分隔符"
+    callbacks.onNewSlide
   );
   row.appendChild(newSlideBtn);
 
-  const renderBtn = createIconButton(
-    "render-btn",
-    ICONS.render,
-    "渲染",
-    "btn-primary",
-    callbacks.onRender,
-    "渲染到幻灯片"
-  );
-  renderBtn.style.marginLeft = "auto";
+  const renderBtn = createIconButton("render-btn", ICONS.render, "渲染", "btn-primary", callbacks.onRender);
+  renderBtn.style.marginLeft = "auto"; // Push to the far right
   row.appendChild(renderBtn);
 
   toolbar.appendChild(row);
