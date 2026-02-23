@@ -311,6 +311,7 @@ function runsToText(runs: InlineRun[]): string {
       case "inline_code": return r.code;
       case "inline_math": return r.displayMode ? `$$${r.latex}$$` : `$${r.latex}$`;
       case "link": return r.text;
+      case "explicit_break": return "\n";
       default: return "";
     }
   }).join("");
@@ -324,6 +325,11 @@ function containsMath(runs: InlineRun[]): boolean {
 /** Check if any run contains inline code */
 function containsInlineCode(runs: InlineRun[]): boolean {
   return runs.some((r) => r.type === "inline_code");
+}
+
+/** Check if any run contains explicit break */
+function containsExplicitBreak(runs: InlineRun[]): boolean {
+  return runs.some((r) => r.type === "explicit_break");
 }
 
 /** Escape HTML special characters */
@@ -349,6 +355,9 @@ function runsToHTML(runs: InlineRun[], opts: RenderOptions): string {
         if (run.underline) html = `<u>${html}</u>`;
         if (run.strikethrough) html = `<s>${html}</s>`;
         return html;
+      }
+      case "explicit_break": {
+        return "<br>";
       }
       case "inline_math":
         try {
@@ -440,7 +449,7 @@ function applyDualFont(
 /** Apply dual font to entire text box content */
 function setTextBoxDualFont(tb: PowerPoint.Shape, text: string, opts: RenderOptions, extraFn?: (sub: PowerPoint.TextRange) => void): void {
   tb.textFrame.autoSizeSetting = "AutoSizeShapeToFitText" as any;
-  tb.textFrame.wordWrap = true;
+  tb.textFrame.wordWrap = false;
   applyDualFont(tb.textFrame.textRange, 0, text, opts.zhFontFamily, opts.enFontFamily, opts.fontSize, opts.fontColor, extraFn);
 }
 
@@ -471,7 +480,7 @@ async function prepHeading(el: HeadingElement, y: number, opts: RenderOptions, i
   const h = fontSize * 1.6;
   const color = opts.fontColor;
 
-  if (containsMath(el.runs) || containsInlineCode(el.runs)) {
+  if (containsMath(el.runs) || containsInlineCode(el.runs) || containsExplicitBreak(el.runs)) {
     const result = await renderRunsAsImage(
       el.runs, opts, fontSize, CONTENT_WIDTH_PX, color,
       { open: "<b>", close: "</b>" }
@@ -498,9 +507,10 @@ async function prepParagraph(
 ): Promise<ElementResult> {
   if (el.runs.length === 0) return { nextY: y + 8, shapeOps: [] };
 
-  // If paragraph contains inline math or inline code, render entire paragraph as image
-  // (PowerPoint native text boxes cannot set background color for partial text)
-  if (containsMath(el.runs) || containsInlineCode(el.runs)) {
+  // If paragraph contains inline math, inline code, or explicit breaks, render entire paragraph as image
+  // (PowerPoint native text boxes cannot set background color for partial text,
+  //  and explicit breaks need precise control over line breaks)
+  if (containsMath(el.runs) || containsInlineCode(el.runs) || containsExplicitBreak(el.runs)) {
     try {
       const result = await renderRunsAsImage(el.runs, opts, opts.fontSize);
       const imgW = Math.min(result.widthPt, CONTENT_WIDTH);
@@ -526,7 +536,7 @@ async function prepParagraph(
   const ops: ShapeOp[] = [(slide) => {
     const tb = slide.shapes.addTextBox(text, { left: SLIDE.MARGIN_LEFT, top: y, width: CONTENT_WIDTH, height: estH });
     tb.textFrame.autoSizeSetting = "AutoSizeShapeToFitText" as any;
-    tb.textFrame.wordWrap = true;
+    tb.textFrame.wordWrap = false;
     let pos = 0;
     for (const run of runs) {
       if (run.type === "text" && run.text.length > 0) {
@@ -537,6 +547,9 @@ async function prepParagraph(
           if (run.strikethrough) sub.font.strikethrough = true;
         });
         pos += run.text.length;
+      } else if (run.type === "explicit_break") {
+        // Explicit breaks are already converted to \n in runsToText
+        pos += 1;
       } else if (run.type === "inline_code" && run.code.length > 0) {
         const sub = tb.textFrame.textRange.getSubstring(pos, run.code.length);
         sub.font.name = opts.codeFontFamily;
@@ -596,10 +609,10 @@ async function prepBlockquote(
   for (const child of el.elements) {
     if (child.type === "paragraph") {
       const text = runsToText(child.runs);
-      if (!text.trim() && !containsMath(child.runs) && !containsInlineCode(child.runs)) { innerY += 8; continue; }
+      if (!text.trim() && !containsMath(child.runs) && !containsInlineCode(child.runs) && !containsExplicitBreak(child.runs)) { innerY += 8; continue; }
 
-      if (containsMath(child.runs) || containsInlineCode(child.runs)) {
-        // Render paragraph with math or inline code as image
+      if (containsMath(child.runs) || containsInlineCode(child.runs) || containsExplicitBreak(child.runs)) {
+        // Render paragraph with math, inline code, or explicit breaks as image
         try {
           const innerWidthPx = Math.round(innerWidth * (96 / 72));
           const result = await renderRunsAsImage(child.runs, opts, opts.fontSize, innerWidthPx, "#666666");
@@ -653,8 +666,8 @@ async function prepList(el: ListElement, y: number, opts: RenderOptions, depth: 
     const item = el.items[idx];
     const prefix = el.ordered ? `${idx + 1}. ` : "• ";
 
-    if (containsMath(item.runs) || containsInlineCode(item.runs)) {
-      // Render list item with math or inline code as image (include prefix)
+    if (containsMath(item.runs) || containsInlineCode(item.runs) || containsExplicitBreak(item.runs)) {
+      // Render list item with math, inline code, or explicit breaks as image (include prefix)
       const prefixRuns: InlineRun[] = [{ type: "text", text: prefix }];
       const allRuns = [...prefixRuns, ...item.runs];
       const itemWidthPx = Math.round(itemW * (96 / 72));
@@ -716,7 +729,7 @@ async function prepBlockMath(
         left: SLIDE.MARGIN_LEFT, top: y, width: CONTENT_WIDTH, height: h,
       });
       tb.textFrame.autoSizeSetting = "AutoSizeShapeToFitText" as any;
-      tb.textFrame.wordWrap = true;
+      tb.textFrame.wordWrap = false;
       tb.textFrame.textRange.font.name = opts.codeFontFamily;
       tb.textFrame.textRange.font.size = opts.fontSize;
       tb.textFrame.textRange.font.color = "#8B4513";
@@ -760,7 +773,7 @@ async function prepTable(el: TableElement, y: number, opts: RenderOptions, image
   if (el.headers.length > 0) {
     const headerY = curY;
     for (let c = 0; c < el.headers.length; c++) {
-      if (containsMath(el.headers[c]) || containsInlineCode(el.headers[c])) {
+      if (containsMath(el.headers[c]) || containsInlineCode(el.headers[c]) || containsExplicitBreak(el.headers[c])) {
         try {
           const result = await renderRunsAsImage(el.headers[c], opts, opts.fontSize, colWidthPx);
           const imgW = Math.min(result.widthPt, colW);
@@ -797,7 +810,7 @@ async function prepTable(el: TableElement, y: number, opts: RenderOptions, image
   for (const row of el.rows) {
     const rowY = curY;
     for (let c = 0; c < row.length; c++) {
-      if (containsMath(row[c]) || containsInlineCode(row[c])) {
+      if (containsMath(row[c]) || containsInlineCode(row[c]) || containsExplicitBreak(row[c])) {
         try {
           const result = await renderRunsAsImage(row[c], opts, opts.fontSize, colWidthPx);
           const imgW = Math.min(result.widthPt, colW);
@@ -837,7 +850,7 @@ async function prepTaskList(el: TaskListElement, y: number, opts: RenderOptions,
   for (const item of el.items) {
     const prefix = item.checked ? "☑ " : "☐ ";
 
-    if (containsMath(item.runs) || containsInlineCode(item.runs)) {
+    if (containsMath(item.runs) || containsInlineCode(item.runs) || containsExplicitBreak(item.runs)) {
       const prefixRuns: InlineRun[] = [{ type: "text", text: prefix }];
       const allRuns = [...prefixRuns, ...item.runs];
       try {

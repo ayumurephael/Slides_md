@@ -7,6 +7,7 @@ import {
   HTML2CANVAS_OPTIONS,
   canvasToBase64,
   pixelsToPoints,
+  autoCropCanvas,
 } from "./render-config";
 
 const cache = new Map<string, MathRenderResult>();
@@ -73,6 +74,9 @@ export async function preloadMathFonts(): Promise<void> {
         "\\mathtt{mono}",
         "\\mathscr{Script}",
         "\\mathfrak{Fraktur}",
+        "\\begin{Bmatrix}a&b\\\\c&d\\end{Bmatrix}",
+        "\\left\\{\\frac{a}{b}\\right\\}",
+        "\\begin{cases}x>0&y\\\\x<0&-y\\end{cases}",
       ];
 
       const testDiv = document.createElement("div");
@@ -153,6 +157,67 @@ function createOffscreenContainer(extraStyles?: Partial<CSSStyleDeclaration>): H
 }
 
 /**
+ * Measure the true visual bounding box of a container, including all
+ * overflowing descendants (e.g. KaTeX SVG delimiters that extend beyond
+ * their vlist parents).  Then expand the container so that html2canvas
+ * and foreignObject capture the full content without clipping.
+ */
+function expandContainerToFitOverflow(container: HTMLElement): void {
+  const containerRect = container.getBoundingClientRect();
+
+  let minX = containerRect.left;
+  let minY = containerRect.top;
+  let maxX = containerRect.right;
+  let maxY = containerRect.bottom;
+
+  // Measure every descendant's bounding rect
+  const descendants = container.querySelectorAll('*');
+  descendants.forEach((el) => {
+    const rect = (el as HTMLElement).getBoundingClientRect();
+    // Skip zero-size elements (hidden, collapsed, etc.)
+    if (rect.width === 0 && rect.height === 0) return;
+    if (rect.left < minX) minX = rect.left;
+    if (rect.top < minY) minY = rect.top;
+    if (rect.right > maxX) maxX = rect.right;
+    if (rect.bottom > maxY) maxY = rect.bottom;
+  });
+
+  // Also check SVGs specifically — their bounding rect may differ
+  const svgs = container.querySelectorAll('svg');
+  svgs.forEach((svg) => {
+    try {
+      const rect = svg.getBoundingClientRect();
+      if (rect.width === 0 && rect.height === 0) return;
+      if (rect.left < minX) minX = rect.left;
+      if (rect.top < minY) minY = rect.top;
+      if (rect.right > maxX) maxX = rect.right;
+      if (rect.bottom > maxY) maxY = rect.bottom;
+    } catch { /* SVG getBoundingClientRect can throw in some browsers */ }
+  });
+
+  // Calculate how much the content overflows the container
+  const overflowTop = containerRect.top - minY;
+  const overflowBottom = maxY - containerRect.bottom;
+  const overflowLeft = containerRect.left - minX;
+  const overflowRight = maxX - containerRect.right;
+
+  // Expand the container with extra padding to encompass overflow
+  if (overflowTop > 0 || overflowBottom > 0 || overflowLeft > 0 || overflowRight > 0) {
+    const currentPaddingTop = parseFloat(getComputedStyle(container).paddingTop) || 0;
+    const currentPaddingBottom = parseFloat(getComputedStyle(container).paddingBottom) || 0;
+    const currentPaddingLeft = parseFloat(getComputedStyle(container).paddingLeft) || 0;
+    const currentPaddingRight = parseFloat(getComputedStyle(container).paddingRight) || 0;
+
+    // Add a small safety margin (2px)
+    const safetyMargin = 2;
+    container.style.paddingTop = `${currentPaddingTop + Math.ceil(overflowTop) + safetyMargin}px`;
+    container.style.paddingBottom = `${currentPaddingBottom + Math.ceil(overflowBottom) + safetyMargin}px`;
+    container.style.paddingLeft = `${currentPaddingLeft + Math.ceil(overflowLeft) + safetyMargin}px`;
+    container.style.paddingRight = `${currentPaddingRight + Math.ceil(overflowRight) + safetyMargin}px`;
+  }
+}
+
+/**
  * Render an HTML element to a high-res PNG via html2canvas.
  * Waits for fonts to load before capturing.
  */
@@ -176,34 +241,217 @@ async function renderToCanvas(container: HTMLElement, scale: number): Promise<HT
         clonedContainer.style.opacity = '1';
       }
 
-      // Fix SVG height for KaTeX delimiters: html2canvas doesn't handle
-      // `height: inherit` correctly, so set explicit pixel heights.
-      const svgs = clonedDoc.querySelectorAll('.katex svg');
-      svgs.forEach((svg) => {
-        const parent = svg.parentElement;
-        if (parent) {
-          const parentHeight = parent.getBoundingClientRect().height || parent.offsetHeight;
-          if (parentHeight > 0) {
-            (svg as SVGElement).style.height = `${parentHeight}px`;
-          }
-        }
-      });
-
-      // Ensure no overflow clipping on delimiter containers
-      const delimContainers = clonedDoc.querySelectorAll('.delimsizing, .minner, .vlist, .vlist-t, .vlist-r');
-      delimContainers.forEach((el) => {
-        (el as HTMLElement).style.overflow = 'visible';
-      });
+      applyKatexCloneFixes(clonedDoc);
 
       const style = clonedDoc.createElement('style');
       style.textContent = getKatexInlineStyles();
-      // Prepend so real KaTeX CSS takes precedence; inline styles are fallback only
       if (clonedDoc.head.firstChild) {
         clonedDoc.head.insertBefore(style, clonedDoc.head.firstChild);
       } else {
         clonedDoc.head.appendChild(style);
       }
     },
+  });
+}
+
+/**
+ * Apply fixes to a cloned document (or SVG foreignObject clone) so that
+ * html2canvas / foreignObject rasterisation captures KaTeX delimiters
+ * correctly.
+ *
+ * Design principles:
+ *  1. NEVER remove or reset KaTeX's `top` offsets inside vlists – they are
+ *     the authoritative positioning data for stacked delimiter pieces.
+ *  2. NEVER change `display` of vlist spans to `block` – KaTeX relies on
+ *     the table-cell / inline-block flow.
+ *  3. DO convert SVG `height` attributes from `em` to `px` because
+ *     html2canvas cannot resolve `height: inherit` on SVG elements.
+ *  4. DO set `overflow: visible` on every container in the clipping chain.
+ *  5. DO convert em-based inline widths/heights on SVG wrapper spans to px.
+ */
+function applyKatexCloneFixes(root: Document | HTMLElement): void {
+  // Helper: parse "NNNem" → px
+  const emToPx = (emValue: string, baseFontSize: number): number => {
+    const match = emValue.match(/^(-?[\d.]+)em$/);
+    return match ? parseFloat(match[1]) * baseFontSize : 0;
+  };
+
+  // Helper: walk up to find an explicit font-size
+  const getFontSize = (el: Element): number => {
+    let current: Element | null = el;
+    while (current) {
+      const style = (current as HTMLElement).style?.fontSize;
+      if (style) {
+        const pxMatch = style.match(/^([\d.]+)px$/);
+        if (pxMatch) return parseFloat(pxMatch[1]);
+        const ptMatch = style.match(/^([\d.]+)pt$/);
+        if (ptMatch) return parseFloat(ptMatch[1]) * 96 / 72;
+      }
+      current = current.parentElement;
+    }
+    return 16;
+  };
+
+  // Collect per-katex-root font sizes
+  const katexRoots = root.querySelectorAll('.katex');
+  const katexFontSizes = new Map<Element, number>();
+  katexRoots.forEach((k) => katexFontSizes.set(k, getFontSize(k)));
+
+  // --- Pass 1: Convert SVG em dimensions to px ---
+  // html2canvas cannot resolve `height: inherit` on SVGs.  We convert the
+  // KaTeX-authored `height="X.XXem"` attribute to an explicit px style
+  // while PRESERVING the element's position within its vlist span.
+  root.querySelectorAll('.katex svg').forEach((svg) => {
+    const svgEl = svg as SVGElement;
+    const katexRoot = svg.closest('.katex');
+    if (!katexRoot) return;
+    const fontSize = katexFontSizes.get(katexRoot) || 16;
+
+    const hAttr = svgEl.getAttribute('height');
+    const hPx = hAttr ? emToPx(hAttr, fontSize) : 0;
+    if (hPx <= 0) return;
+
+    // Compute width from viewBox aspect ratio
+    const viewBox = svgEl.getAttribute('viewBox');
+    let wPx = 0;
+    if (viewBox) {
+      const parts = viewBox.split(' ').map(Number);
+      if (parts.length === 4 && parts[3] > 0) {
+        wPx = hPx * (parts[2] / parts[3]);
+      }
+    }
+
+    // Replace em attributes with px styles
+    svgEl.style.height = `${hPx}px`;
+    svgEl.removeAttribute('height');
+    if (wPx > 0) {
+      svgEl.style.width = `${wPx}px`;
+      svgEl.removeAttribute('width');
+    }
+
+    // Convert the immediate parent span's em width/height to px as well
+    const parentSpan = svg.parentElement;
+    if (parentSpan && parentSpan.tagName === 'SPAN') {
+      const ps = (parentSpan as HTMLElement).style;
+      const inH = ps.height;
+      if (inH && inH.includes('em')) {
+        const inHPx = emToPx(inH, fontSize);
+        if (inHPx > 0) ps.height = `${inHPx}px`;
+      }
+      const inW = ps.width;
+      if (inW && inW.includes('em')) {
+        const inWPx = emToPx(inW, fontSize);
+        if (inWPx > 0) ps.width = `${inWPx}px`;
+      }
+      ps.overflow = 'visible';
+    }
+  });
+
+  // --- Pass 2: overflow:visible on the entire clipping chain ---
+  // NOTE: .stretchy and .hide-tail are intentionally EXCLUDED — they use
+  // overflow:hidden to clip 400em-wide SVGs horizontally.  Their vertical
+  // overflow is handled by expandContainerToFitOverflow() instead.
+  const overflowSelectors = [
+    '.katex',
+    '.katex-html',
+    '.base',
+    '.strut',
+    '.minner',
+    '.mopen',
+    '.mclose',
+    '.mord',
+    '.delimsizing',
+    '.delimsizing.mult',
+    '.delimcenter',
+    '.nulldelimiter',
+    '.vlist-t',
+    '.vlist-t2',
+    '.vlist-r',
+    '.vlist-s',
+    '.vlist',
+    '.vlist > span',
+    '.mtable',
+    '.svg-align',
+    '.pstrut',
+    '.arraycolsep',
+    '.col-align-c',
+    '.col-align-l',
+    '.col-align-r',
+  ];
+  overflowSelectors.forEach((sel) => {
+    root.querySelectorAll(sel).forEach((el) => {
+      (el as HTMLElement).style.overflow = 'visible';
+    });
+  });
+
+  // --- Pass 3: Convert em-based top/height on vlist > span to px ---
+  // KaTeX positions each row of a vlist with `top: -X.XXem`.  html2canvas
+  // sometimes mis-resolves em units in cloned documents, so convert to px.
+  root.querySelectorAll('.vlist > span').forEach((span) => {
+    const el = span as HTMLElement;
+    const katexRoot = span.closest('.katex');
+    const fontSize = katexRoot ? katexFontSizes.get(katexRoot) || 16 : 16;
+
+    const topVal = el.style.top;
+    if (topVal && topVal.includes('em')) {
+      const topPx = emToPx(topVal, fontSize);
+      el.style.top = `${topPx}px`;
+    }
+  });
+
+  // --- Pass 4: Convert vlist inline height from em to px ---
+  root.querySelectorAll('.vlist').forEach((vlist) => {
+    const el = vlist as HTMLElement;
+    const katexRoot = vlist.closest('.katex');
+    const fontSize = katexRoot ? katexFontSizes.get(katexRoot) || 16 : 16;
+
+    const hVal = el.style.height;
+    if (hVal && hVal.includes('em')) {
+      const hPx = emToPx(hVal, fontSize);
+      if (hPx > 0) el.style.height = `${hPx}px`;
+    }
+  });
+
+  // --- Pass 5: Convert pstrut heights from em to px ---
+  root.querySelectorAll('.pstrut').forEach((pstrut) => {
+    const el = pstrut as HTMLElement;
+    const katexRoot = pstrut.closest('.katex');
+    const fontSize = katexRoot ? katexFontSizes.get(katexRoot) || 16 : 16;
+
+    const hVal = el.style.height;
+    if (hVal && hVal.includes('em')) {
+      const hPx = emToPx(hVal, fontSize);
+      if (hPx > 0) el.style.height = `${hPx}px`;
+    }
+  });
+
+  // --- Pass 6: Convert strut heights from em to px ---
+  root.querySelectorAll('.strut').forEach((strut) => {
+    const el = strut as HTMLElement;
+    const katexRoot = strut.closest('.katex');
+    const fontSize = katexRoot ? katexFontSizes.get(katexRoot) || 16 : 16;
+
+    const hVal = el.style.height;
+    if (hVal && hVal.includes('em')) {
+      const hPx = emToPx(hVal, fontSize);
+      if (hPx > 0) el.style.height = `${hPx}px`;
+    }
+  });
+
+  // --- Pass 7: Fix .delimsizing.mult (multi-part braces) ---
+  // These use font-based Unicode characters (⎧⎨⎩ etc.) stacked via vlist.
+  // We must NOT alter the vlist structure — just ensure visibility and
+  // convert any remaining em units.
+  root.querySelectorAll('.delimsizing.mult').forEach((delim) => {
+    const el = delim as HTMLElement;
+    el.style.overflow = 'visible';
+    el.style.display = 'inline-block';
+    el.style.verticalAlign = 'middle';
+
+    // Ensure delimsizinginner spans are visible
+    delim.querySelectorAll('.delimsizinginner').forEach((inner) => {
+      (inner as HTMLElement).style.overflow = 'visible';
+    });
   });
 }
 
@@ -408,40 +656,52 @@ function getKatexInlineStyles(): string {
     /* Keep display-mode math ($$...$$) at the standard KaTeX size */
     .slidemd-mixed > .katex-display > .katex { font-size: 1.21em; }
 
-    /* Baseline alignment for inline KaTeX with CJK text.
-       KaTeX_Main has a larger descender than CJK fonts like 微软雅黑,
-       causing math to appear shifted downward. Use vertical-align: middle
-       with a small negative margin to align the math axis (center of x-height)
-       with the CJK glyph center, then fine-tune with relative positioning. */
+    /* Baseline alignment for inline KaTeX with CJK text. */
     .slidemd-mixed > .katex {
       vertical-align: -0.2ex;
       position: relative;
       top: -0.1ex;
     }
-    /* Unify line-height so strut calculations don't fight the container */
     .slidemd-mixed > .katex .base {
       line-height: inherit;
     }
     .slidemd-mixed > .katex-display { vertical-align: baseline; }
 
-    /* Fix matrix delimiter overflow: prevent clipping of tall brackets */
-    .katex .delimsizing { overflow: visible !important; }
-    .katex .minner { overflow: visible !important; }
-    .katex .vlist { overflow: visible !important; }
-    .katex .vlist-t { overflow: visible !important; }
-    .katex .vlist-r { overflow: visible !important; }
-    .katex .vlist-s { overflow: visible !important; }
-
-    /* Ensure SVG delimiters inherit proper height */
-    .katex .delimsizing svg,
-    .katex .stretchy svg {
-      height: 100% !important;
+    /* Prevent clipping throughout the KaTeX element tree.
+       This is the ONLY layout override we apply — everything else
+       (display, position, top, height) is left to KaTeX.
+       NOTE: .stretchy and .hide-tail are intentionally excluded —
+       they use overflow:hidden to clip 400em-wide SVGs horizontally. */
+    .katex .delimsizing,
+    .katex .delimsizing.mult,
+    .katex .delimcenter,
+    .katex .minner,
+    .katex .mopen,
+    .katex .mclose,
+    .katex .mord,
+    .katex .base,
+    .katex .strut,
+    .katex .pstrut,
+    .katex .vlist,
+    .katex .vlist-t,
+    .katex .vlist-t2,
+    .katex .vlist-r,
+    .katex .vlist-s,
+    .katex .vlist > span,
+    .katex .mtable,
+    .katex .arraycolsep,
+    .katex .col-align-c,
+    .katex .col-align-l,
+    .katex .col-align-r,
+    .katex .svg-align,
+    .katex .delimsizing.mult .vlist > span,
+    .katex .delimsizinginner,
+    .katex .nulldelimiter {
       overflow: visible !important;
     }
 
-    /* Ensure stacked delimiter pieces are visible */
-    .katex .delimsizing.mult { overflow: visible !important; }
-    .katex .delimsizing.mult .vlist > span { overflow: visible !important; }
+    /* Ensure SVG paths in delimiters are painted */
+    .katex svg path { fill: currentColor; stroke: none; }
   `;
 }
 
@@ -470,6 +730,9 @@ async function renderViaForeignObject(
   clone.style.left = "";
   clone.style.top = "";
   clone.style.background = "white";
+
+  // Apply the shared KaTeX clone fixes (em→px conversion, overflow:visible)
+  applyKatexCloneFixes(clone);
 
   const svgNS = "http://www.w3.org/2000/svg";
   const xhtmlNS = "http://www.w3.org/1999/xhtml";
@@ -569,6 +832,11 @@ export async function renderMath(
       await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
       await new Promise((r) => setTimeout(r, 50));
 
+      // Expand container to encompass any overflowing KaTeX content
+      // (e.g. tall SVG delimiters that extend beyond their vlist parents)
+      expandContainerToFitOverflow(container);
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+
       let canvas: HTMLCanvasElement;
       try {
         canvas = await renderToCanvas(container, scale);
@@ -584,9 +852,10 @@ export async function renderMath(
         continue;
       }
 
-      const base64 = canvasToBase64(canvas, quality);
-      const widthPt = pixelsToPoints(canvas.width, scale);
-      const heightPt = pixelsToPoints(canvas.height, scale);
+      const croppedCanvas = autoCropCanvas(canvas);
+      const base64 = canvasToBase64(croppedCanvas, quality);
+      const widthPt = pixelsToPoints(croppedCanvas.width, scale);
+      const heightPt = pixelsToPoints(croppedCanvas.height, scale);
 
       const result: MathRenderResult = { base64, widthPt, heightPt };
       cache.set(cacheKey, result);
@@ -663,6 +932,9 @@ function calibrateInlineMathBaseline(
 /**
  * Render a mixed paragraph (text + inline math) as a single high-res PNG.
  * Uses html2canvas with SVG foreignObject fallback.
+ * 
+ * NOTE: Auto-wrapping is DISABLED. Text will only wrap at explicit [br] markers
+ * (converted to <br> tags). Long text without [br] will overflow the container.
  */
 export async function renderMixedParagraph(
   html: string,
@@ -691,8 +963,7 @@ export async function renderMixedParagraph(
       fontFamily,
       color: fontColor,
       lineHeight: "1.6",
-      maxWidth: `${maxWidthPx}px`,
-      whiteSpace: "normal",
+      whiteSpace: "nowrap",
     });
     container.classList.add("slidemd-mixed");
     document.body.appendChild(container);
@@ -710,6 +981,10 @@ export async function renderMixedParagraph(
       await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
       await new Promise((r) => setTimeout(r, 30));
 
+      // Expand container to encompass any overflowing KaTeX content
+      expandContainerToFitOverflow(container);
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+
       let canvas: HTMLCanvasElement;
       try {
         canvas = await renderToCanvas(container, scale);
@@ -725,9 +1000,10 @@ export async function renderMixedParagraph(
         continue;
       }
 
-      const base64 = canvasToBase64(canvas, quality);
-      const widthPt = pixelsToPoints(canvas.width, scale);
-      const heightPt = pixelsToPoints(canvas.height, scale);
+      const croppedCanvas = autoCropCanvas(canvas);
+      const base64 = canvasToBase64(croppedCanvas, quality);
+      const widthPt = pixelsToPoints(croppedCanvas.width, scale);
+      const heightPt = pixelsToPoints(croppedCanvas.height, scale);
 
       return { base64, widthPt, heightPt };
     } catch (err) {

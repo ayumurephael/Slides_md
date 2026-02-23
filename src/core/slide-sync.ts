@@ -18,6 +18,7 @@ import {
   getAllSlideIds,
 } from "./source-store";
 import { buildSingleSlide, clearSlideMDShapesOnSlide } from "./slide-builder";
+import { insertSlideWithLayout, type LayoutType } from "./slide-layouts";
 
 export interface SyncResult {
   totalSections: number;
@@ -114,14 +115,15 @@ export async function syncAllSlides(
     } else {
       // New section — create slide
       onProgress?.(`幻灯片 ${i + 1}/${totalSections}: 创建中...`);
-      const newId = await PowerPoint.run(async (ctx) => {
-        ctx.presentation.slides.add();
-        await ctx.sync();
-        const slides = ctx.presentation.slides;
-        slides.load("items/id");
-        await ctx.sync();
-        return slides.items[slides.items.length - 1].id;
-      });
+      const newId = await insertSlideWithLayout("blank", false)
+        ?? await PowerPoint.run(async (ctx) => {
+          ctx.presentation.slides.add();
+          await ctx.sync();
+          const slides = ctx.presentation.slides;
+          slides.load("items/id");
+          await ctx.sync();
+          return slides.items[slides.items.length - 1].id;
+        });
       const buildResult = await buildSingleSlide(slideIR, options, newId, onProgress);
       newSlideIds.push(newId);
       saveRenderState(newId, {

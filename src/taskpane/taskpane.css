@@ -470,6 +470,26 @@ body {
   box-shadow: var(--shadow-glow);
 }
 
+.toolbar-group.layout-group select {
+  min-width: 100px;
+  border-color: var(--primary-200);
+  background-color: var(--primary-50);
+}
+
+.toolbar-group.layout-group select:hover {
+  border-color: var(--primary-300);
+  background-color: var(--primary-100);
+}
+
+.toolbar-group.layout-group select:focus {
+  border-color: var(--primary-500);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+}
+
+.toolbar-group.layout-group label {
+  color: var(--primary-600);
+}
+
 .toolbar-group input[type="number"] {
   width: 52px;
   padding: var(--sp-1) var(--sp-2);

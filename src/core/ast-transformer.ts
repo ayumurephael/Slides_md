@@ -146,6 +146,31 @@ export function transformTokens(tokens: Token[]): SlideIR[] {
   return slides;
 }
 
+const EXPLICIT_BREAK_PATTERN = /\[br\]/gi;
+
+function processTextWithExplicitBreaks(text: string, bold?: boolean, italic?: boolean, underline?: boolean, strikethrough?: boolean): InlineRun[] {
+  const runs: InlineRun[] = [];
+  const parts = text.split(EXPLICIT_BREAK_PATTERN);
+  
+  for (let i = 0; i < parts.length; i++) {
+    if (parts[i].length > 0) {
+      runs.push({
+        type: "text",
+        text: parts[i],
+        bold: bold || undefined,
+        italic: italic || undefined,
+        underline: underline || undefined,
+        strikethrough: strikethrough || undefined,
+      });
+    }
+    if (i < parts.length - 1) {
+      runs.push({ type: "explicit_break" });
+    }
+  }
+  
+  return runs;
+}
+
 /** Parse inline tokens into InlineRun[] */
 function parseInlineRuns(children: Token[]): InlineRun[] {
   const runs: InlineRun[] = [];
@@ -189,23 +214,30 @@ function parseInlineRuns(children: Token[]): InlineRun[] {
         break;
       case "text":
         if (linkHref !== null) {
-          runs.push({ type: "link", href: linkHref, text: child.content });
+          const linkText = child.content;
+          if (EXPLICIT_BREAK_PATTERN.test(linkText)) {
+            const parts = linkText.split(EXPLICIT_BREAK_PATTERN);
+            for (let i = 0; i < parts.length; i++) {
+              if (parts[i].length > 0) {
+                runs.push({ type: "link", href: linkHref, text: parts[i] });
+              }
+              if (i < parts.length - 1) {
+                runs.push({ type: "explicit_break" });
+              }
+            }
+          } else {
+            runs.push({ type: "link", href: linkHref, text: linkText });
+          }
         } else {
-          runs.push({
-            type: "text",
-            text: child.content,
-            bold: bold || undefined,
-            italic: italic || undefined,
-            underline: underline || undefined,
-            strikethrough: strikethrough || undefined,
-          });
+          const textRuns = processTextWithExplicitBreaks(child.content, bold, italic, underline, strikethrough);
+          runs.push(...textRuns);
         }
         break;
       case "softbreak":
         runs.push({ type: "text", text: "\n" });
         break;
       case "hardbreak":
-        runs.push({ type: "text", text: "\n" });
+        runs.push({ type: "explicit_break" });
         break;
       case "code_inline":
         runs.push({ type: "inline_code", code: child.content });
@@ -214,7 +246,6 @@ function parseInlineRuns(children: Token[]): InlineRun[] {
         runs.push({ type: "inline_math", latex: child.content });
         break;
       case "math_inline_double":
-        // $$...$$ used inline — render with display mode for proper sizing
         runs.push({ type: "inline_math", latex: child.content, displayMode: true });
         break;
       case "image":
@@ -226,7 +257,8 @@ function parseInlineRuns(children: Token[]): InlineRun[] {
         break;
       default:
         if (child.content) {
-          runs.push({ type: "text", text: child.content });
+          const defaultRuns = processTextWithExplicitBreaks(child.content, bold, italic, underline, strikethrough);
+          runs.push(...defaultRuns);
         }
         break;
     }

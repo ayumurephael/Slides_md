@@ -96,7 +96,7 @@ export interface TableElement {
   rows: InlineRun[][][];
 }
 
-export type InlineRun = TextRun | InlineMathRun | InlineCodeRun | LinkRun | InlineImageRun;
+export type InlineRun = TextRun | InlineMathRun | InlineCodeRun | LinkRun | InlineImageRun | ExplicitBreakRun;
 
 export interface TextRun {
   type: "text";
@@ -105,6 +105,10 @@ export interface TextRun {
   italic?: boolean;
   underline?: boolean;
   strikethrough?: boolean;
+}
+
+export interface ExplicitBreakRun {
+  type: "explicit_break";
 }
 
 export interface InlineMathRun {

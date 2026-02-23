@@ -5,6 +5,7 @@ import {
   HTML2CANVAS_OPTIONS,
   canvasToBase64Raw,
   pixelsToPoints,
+  autoCropCanvas,
 } from "./render-config";
 
 export interface TikZRenderResult {
@@ -152,9 +153,10 @@ async function svgToPng(svgString: string): Promise<TikZRenderResult> {
       ...HTML2CANVAS_OPTIONS,
       scale,
     });
-    const raw = canvasToBase64Raw(canvas, quality);
-    const widthPt = pixelsToPoints(canvas.width, scale);
-    const heightPt = pixelsToPoints(canvas.height, scale);
+    const croppedCanvas = autoCropCanvas(canvas);
+    const raw = canvasToBase64Raw(croppedCanvas, quality);
+    const widthPt = pixelsToPoints(croppedCanvas.width, scale);
+    const heightPt = pixelsToPoints(croppedCanvas.height, scale);
 
     return { base64: raw, widthPt, heightPt };
   } finally {

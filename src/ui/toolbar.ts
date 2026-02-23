@@ -6,11 +6,45 @@ import {
   getCurrentRenderQuality,
   setRenderQuality,
 } from "../core/render-config";
+import {
+  LAYOUT_OPTIONS,
+  type LayoutType,
+} from "../core/slide-layouts";
 
 export interface ToolbarCallbacks {
   onRender: () => void;
-  onNewSlide: () => void;
+  onNewSlide: (layoutType: LayoutType) => void;
   onLoadFromSlide: () => void;
+}
+
+let selectedLayoutType: LayoutType = "titleAndContent";
+let layoutSelect: HTMLSelectElement | null = null;
+
+export function getSelectedLayoutType(): LayoutType {
+  return selectedLayoutType;
+}
+
+export function setSelectedLayoutType(layoutType: LayoutType): void {
+  selectedLayoutType = layoutType;
+  if (layoutSelect) {
+    layoutSelect.value = layoutType;
+    updateLayoutHighlight();
+  }
+}
+
+function updateLayoutHighlight(): void {
+  if (!layoutSelect) return;
+  
+  const options = layoutSelect.querySelectorAll("option");
+  options.forEach((opt) => {
+    if (opt.value === selectedLayoutType) {
+      opt.style.fontWeight = "bold";
+      opt.style.backgroundColor = "#e3f2fd";
+    } else {
+      opt.style.fontWeight = "normal";
+      opt.style.backgroundColor = "";
+    }
+  });
 }
 
 function createIconButton(id: string, icon: string, text: string, callback: () => void): HTMLButtonElement {
@@ -109,12 +143,56 @@ export function createToolbar(container: HTMLElement, callbacks: ToolbarCallback
 
   row.appendChild(divider());
 
+  // ── Slide layout selector ──
+  const layoutGroup = document.createElement("div");
+  layoutGroup.className = "toolbar-group layout-group";
+  const layoutLabel = document.createElement("label");
+  layoutLabel.textContent = "版式";
+  layoutLabel.htmlFor = "slide-layout";
+  layoutGroup.appendChild(layoutLabel);
+
+  layoutSelect = document.createElement("select");
+  layoutSelect.id = "slide-layout";
+  layoutSelect.title = "选择新幻灯片的版式";
+  
+  for (const layout of LAYOUT_OPTIONS) {
+    const option = document.createElement("option");
+    option.value = layout.type;
+    option.textContent = layout.name;
+    option.title = layout.description;
+    if (layout.type === selectedLayoutType) {
+      option.selected = true;
+    }
+    layoutSelect.appendChild(option);
+  }
+  
+  layoutSelect.addEventListener("change", () => {
+    selectedLayoutType = layoutSelect!.value as LayoutType;
+    updateLayoutHighlight();
+  });
+  
+  updateLayoutHighlight();
+  
+  layoutGroup.appendChild(layoutSelect);
+  row.appendChild(layoutGroup);
+
+  row.appendChild(divider());
+
   // ── Action buttons ──
   const loadBtn = createIconButton("load-from-slide-btn", ICONS.load, "加载", callbacks.onLoadFromSlide);
   row.appendChild(loadBtn);
 
-  const newSlideBtn = createIconButton("new-slide-btn", ICONS.newSlide, "新幻灯片", callbacks.onNewSlide);
+  const newSlideBtn = createIconButton("new-slide-btn", ICONS.newSlide, "新幻灯片", () => {
+    callbacks.onNewSlide(selectedLayoutType);
+  });
+  newSlideBtn.title = `在当前幻灯片后插入新幻灯片（版式: ${LAYOUT_OPTIONS.find(l => l.type === selectedLayoutType)?.name || selectedLayoutType}）`;
   row.appendChild(newSlideBtn);
+
+  // Update button tooltip when layout changes
+  layoutSelect.addEventListener("change", () => {
+    const layoutName = LAYOUT_OPTIONS.find(l => l.type === selectedLayoutType)?.name || selectedLayoutType;
+    newSlideBtn.title = `在当前幻灯片后插入新幻灯片（版式: ${layoutName}）`;
+  });
 
   const renderBtn = createIconButton("render-btn", ICONS.render, "渲染", callbacks.onRender);
   row.appendChild(renderBtn);

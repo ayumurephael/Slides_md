@@ -46,6 +46,8 @@ function serializeRun(run: InlineRun): string {
       return `L:${run.href}|${run.text}`;
     case "inline_image":
       return `I:${run.src}|${run.alt}`;
+    case "explicit_break":
+      return `BR:`;
   }
 }
 /** Recursively serialize a SlideElement to a stable string */

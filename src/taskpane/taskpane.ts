@@ -17,6 +17,14 @@ import {
 import { createSlideNavigator, parseSlideSections } from "../ui/slide-navigator";
 import type { SlideNavigatorController } from "../ui/slide-navigator";
 import { syncAllSlides } from "../core/slide-sync";
+import {
+  insertSlideWithLayout,
+  getCurrentSlideLayout,
+  getAvailableLayouts,
+  LAYOUT_OPTIONS,
+  type LayoutType,
+} from "../core/slide-layouts";
+import { setSelectedLayoutType } from "../ui/toolbar";
 
 let statusBar: HTMLElement;
 let renderBtn: HTMLButtonElement | null = null;
@@ -92,8 +100,7 @@ async function handleRender() {
   }
 }
 
-async function handleNewSlide() {
-  // Insert --- separator in editor
+async function handleNewSlide(layoutType: LayoutType) {
   const { from, to } = editor.getSelection();
   const doc = editor.getValue();
   const before = doc.substring(0, from);
@@ -102,23 +109,34 @@ async function handleNewSlide() {
   editor.setValue(before + separator + after);
   editor.focus();
 
-  // Update navigator
   navigator?.update(editor.getValue());
 
-  // Also insert a blank slide in PowerPoint if available
   if (isPowerPoint) {
     try {
       if (Office.context.requirements.isSetSupported("PowerPointApi", "1.5")) {
-        await PowerPoint.run(async (ctx) => {
-          ctx.presentation.slides.add();
-          await ctx.sync();
-        });
-        setStatus("已插入分隔符和新幻灯片", "success");
+        const layoutDisplayName = LAYOUT_OPTIONS.find(l => l.type === layoutType)?.name || layoutType;
+        setStatus(`正在插入新幻灯片（版式: ${layoutDisplayName}）...`, "rendering");
+        
+        const newSlideId = await insertSlideWithLayout(layoutType, true);
+        if (newSlideId) {
+          setStatus(`已插入分隔符和新幻灯片（版式: ${layoutDisplayName}）`, "success");
+        } else {
+          setStatus("已插入分隔符，但创建幻灯片失败。请检查 PowerPoint 母版是否包含所需版式。", "error");
+        }
+      } else {
+        setStatus("已插入分隔符。创建幻灯片需要 PowerPoint API 1.5 或更高版本。", "error");
       }
     } catch (err: any) {
       console.warn("Could not insert PowerPoint slide:", err);
-      setStatus(`分隔符已插入，但创建幻灯片失败: ${err.message || err}`, "error");
+      const errorMsg = err.message || String(err);
+      if (errorMsg.includes("layout") || errorMsg.includes("Layout")) {
+        setStatus(`分隔符已插入，但版式匹配失败。请检查演示文稿母版是否包含所需版式。`, "error");
+      } else {
+        setStatus(`分隔符已插入，但创建幻灯片失败: ${errorMsg}`, "error");
+      }
     }
+  } else {
+    setStatus("已插入分隔符（浏览器预览模式，幻灯片创建功能需在 PowerPoint 中使用）", "success");
   }
 }
 
@@ -211,6 +229,15 @@ async function checkCurrentSlideSource() {
       showNotification();
     } else {
       hideNotification();
+    }
+
+    const currentLayout = await getCurrentSlideLayout();
+    if (currentLayout) {
+      setSelectedLayoutType(currentLayout);
+      const layoutSelect = document.getElementById("slide-layout") as HTMLSelectElement;
+      if (layoutSelect) {
+        layoutSelect.value = currentLayout;
+      }
     }
   } catch {
     hideNotification();
