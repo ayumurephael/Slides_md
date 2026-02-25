@@ -48,6 +48,8 @@ function serializeRun(run: InlineRun): string {
       return `I:${run.src}|${run.alt}`;
     case "explicit_break":
       return `BR:`;
+    case "html":
+      return `HTML:${run.html}`;
   }
 }
 /** Recursively serialize a SlideElement to a stable string */
@@ -137,10 +139,23 @@ export function computeDiff(
     firstChanged = minLen;
   }
 
+  // If elements were removed (new length < old length), we need to ensure
+  // we delete shapes for removed elements. This is handled by clearSlideMDShapesFrom.
+  // The startY should be from the element before firstChanged.
+  
   // Determine startY from the previous render state
-  const startY = firstChanged === 0
-    ? undefined  // Will use default MARGIN_TOP
-    : oldState.nextYs[firstChanged - 1];
+  // If firstChanged is 0, we start from the top
+  // Otherwise, we use the nextY of the previous element
+  let startY: number | undefined;
+  if (firstChanged === 0) {
+    startY = undefined;  // Will use default MARGIN_TOP
+  } else if (oldState.nextYs && oldState.nextYs.length >= firstChanged) {
+    startY = oldState.nextYs[firstChanged - 1];
+  } else {
+    // Fallback: we don't have valid nextYs, do a full rebuild
+    console.warn("Invalid nextYs in old state, falling back to full rebuild");
+    return { kind: "full_rebuild" };
+  }
 
   return {
     kind: "incremental",

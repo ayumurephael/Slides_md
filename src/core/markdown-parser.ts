@@ -31,7 +31,7 @@ function applyPlugins(md: MarkdownIt, useKatex: boolean): MarkdownIt {
 
 export function getParser(): MarkdownIt {
   if (mdInstance) return mdInstance;
-  const md = new MarkdownIt({ html: false, linkify: true, typographer: false });
+  const md = new MarkdownIt({ html: true, linkify: true, typographer: false });
   try {
     applyPlugins(md, false);
   } catch (err) {
@@ -54,7 +54,7 @@ export function parseMarkdown(src: string): ReturnType<MarkdownIt["parse"]> {
 
 export function renderMarkdownHTML(src: string): string {
   if (!previewInstance) {
-    const md = new MarkdownIt({ html: false, linkify: true });
+    const md = new MarkdownIt({ html: true, linkify: true });
     try {
       applyPlugins(md, true);
     } catch (err) {

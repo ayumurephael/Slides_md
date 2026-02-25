@@ -90,6 +90,24 @@ export async function clearSlideMDShapes(onProgress?: ProgressCallback): Promise
   return deletedCount;
 }
 
+/** Check if there are any old naming format shapes on the current slide */
+async function hasOldNamingShapes(): Promise<boolean> {
+  return PowerPoint.run(async (context) => {
+    const slide = context.presentation.getSelectedSlides().getItemAt(0);
+    slide.shapes.load("items/name");
+    await context.sync();
+
+    const newPrefix = `${SHAPE_NAME_PREFIX}e`;
+    for (const shape of slide.shapes.items) {
+      const name = shape.name || "";
+      if (name.startsWith(SHAPE_NAME_PREFIX) && !name.startsWith(newPrefix)) {
+        return true;
+      }
+    }
+    return false;
+  });
+}
+
 /** Clear shapes created by SlideMD with element index >= fromIndex */
 export async function clearSlideMDShapesFrom(
   fromIndex: number,
@@ -119,9 +137,13 @@ export async function clearSlideMDShapesFrom(
             shapesToDelete.push(shape);
           }
         }
+      } else {
+        // Old naming (SlideMD_0, SlideMD_img_0) — treat as element 0
+        // Delete if we're updating from index 0 or earlier
+        if (fromIndex === 0) {
+          shapesToDelete.push(shape);
+        }
       }
-      // Old naming (SlideMD_0, SlideMD_img_0) — can't determine element index,
-      // so these are only cleaned up by clearSlideMDShapes() during full_rebuild
     }
 
     for (const shape of shapesToDelete) {
@@ -188,11 +210,11 @@ export async function buildSlides(
   onProgress?.("渲染公式和图片...");
   const pendingImages: { base64: string; left: number; top: number; width: number; height: number; elementIndex: number }[] = [];
   const elementResults: { result: ElementResult; elementIndex: number }[] = [];
-  const nextYs: number[] = [];
+  
+  // Initialize nextYs array with proper length
+  // For incremental rendering, the caller will merge with old state
+  const nextYs: number[] = new Array(allElements.length);
   let cursorY = incrementalOpts?.startY ?? SLIDE.MARGIN_TOP;
-
-  // For incremental: fill nextYs for skipped elements from previous state
-  // (caller should have preserved these from the old RenderState)
 
   for (let i = startIdx; i < allElements.length; i++) {
     const images: PendingImage[] = [];
@@ -312,6 +334,7 @@ function runsToText(runs: InlineRun[]): string {
       case "inline_math": return r.displayMode ? `$$${r.latex}$$` : `$${r.latex}$`;
       case "link": return r.text;
       case "explicit_break": return "\n";
+      case "html": return r.html.replace(/<[^>]*>/g, "");
       default: return "";
     }
   }).join("");
@@ -330,6 +353,11 @@ function containsInlineCode(runs: InlineRun[]): boolean {
 /** Check if any run contains explicit break */
 function containsExplicitBreak(runs: InlineRun[]): boolean {
   return runs.some((r) => r.type === "explicit_break");
+}
+
+/** Check if any run contains HTML */
+function containsHtml(runs: InlineRun[]): boolean {
+  return runs.some((r) => r.type === "html");
 }
 
 /** Escape HTML special characters */
@@ -378,6 +406,8 @@ function runsToHTML(runs: InlineRun[], opts: RenderOptions): string {
         return `<span style="color:#0563C1;text-decoration:underline;">${escapeHTML(run.text)}</span>`;
       case "inline_image":
         return `[${escapeHTML(run.alt || "image")}]`;
+      case "html":
+        return run.html;
       default:
         return "";
     }
@@ -480,7 +510,7 @@ async function prepHeading(el: HeadingElement, y: number, opts: RenderOptions, i
   const h = fontSize * 1.6;
   const color = opts.fontColor;
 
-  if (containsMath(el.runs) || containsInlineCode(el.runs) || containsExplicitBreak(el.runs)) {
+  if (containsMath(el.runs) || containsInlineCode(el.runs) || containsExplicitBreak(el.runs) || containsHtml(el.runs)) {
     const result = await renderRunsAsImage(
       el.runs, opts, fontSize, CONTENT_WIDTH_PX, color,
       { open: "<b>", close: "</b>" }
@@ -507,10 +537,11 @@ async function prepParagraph(
 ): Promise<ElementResult> {
   if (el.runs.length === 0) return { nextY: y + 8, shapeOps: [] };
 
-  // If paragraph contains inline math, inline code, or explicit breaks, render entire paragraph as image
+  // If paragraph contains inline math, inline code, explicit breaks, or HTML, render entire paragraph as image
   // (PowerPoint native text boxes cannot set background color for partial text,
   //  and explicit breaks need precise control over line breaks)
-  if (containsMath(el.runs) || containsInlineCode(el.runs) || containsExplicitBreak(el.runs)) {
+  // HTML content needs to be rendered as image to preserve styles
+  if (containsMath(el.runs) || containsInlineCode(el.runs) || containsExplicitBreak(el.runs) || containsHtml(el.runs)) {
     try {
       const result = await renderRunsAsImage(el.runs, opts, opts.fontSize);
       const imgW = Math.min(result.widthPt, CONTENT_WIDTH);
@@ -609,10 +640,10 @@ async function prepBlockquote(
   for (const child of el.elements) {
     if (child.type === "paragraph") {
       const text = runsToText(child.runs);
-      if (!text.trim() && !containsMath(child.runs) && !containsInlineCode(child.runs) && !containsExplicitBreak(child.runs)) { innerY += 8; continue; }
+      if (!text.trim() && !containsMath(child.runs) && !containsInlineCode(child.runs) && !containsExplicitBreak(child.runs) && !containsHtml(child.runs)) { innerY += 8; continue; }
 
-      if (containsMath(child.runs) || containsInlineCode(child.runs) || containsExplicitBreak(child.runs)) {
-        // Render paragraph with math, inline code, or explicit breaks as image
+      if (containsMath(child.runs) || containsInlineCode(child.runs) || containsExplicitBreak(child.runs) || containsHtml(child.runs)) {
+        // Render paragraph with math, inline code, explicit breaks, or HTML as image
         try {
           const innerWidthPx = Math.round(innerWidth * (96 / 72));
           const result = await renderRunsAsImage(child.runs, opts, opts.fontSize, innerWidthPx, "#666666");
@@ -666,8 +697,8 @@ async function prepList(el: ListElement, y: number, opts: RenderOptions, depth: 
     const item = el.items[idx];
     const prefix = el.ordered ? `${idx + 1}. ` : "• ";
 
-    if (containsMath(item.runs) || containsInlineCode(item.runs) || containsExplicitBreak(item.runs)) {
-      // Render list item with math, inline code, or explicit breaks as image (include prefix)
+    if (containsMath(item.runs) || containsInlineCode(item.runs) || containsExplicitBreak(item.runs) || containsHtml(item.runs)) {
+      // Render list item with math, inline code, explicit breaks, or HTML as image (include prefix)
       const prefixRuns: InlineRun[] = [{ type: "text", text: prefix }];
       const allRuns = [...prefixRuns, ...item.runs];
       const itemWidthPx = Math.round(itemW * (96 / 72));
@@ -773,7 +804,7 @@ async function prepTable(el: TableElement, y: number, opts: RenderOptions, image
   if (el.headers.length > 0) {
     const headerY = curY;
     for (let c = 0; c < el.headers.length; c++) {
-      if (containsMath(el.headers[c]) || containsInlineCode(el.headers[c]) || containsExplicitBreak(el.headers[c])) {
+      if (containsMath(el.headers[c]) || containsInlineCode(el.headers[c]) || containsExplicitBreak(el.headers[c]) || containsHtml(el.headers[c])) {
         try {
           const result = await renderRunsAsImage(el.headers[c], opts, opts.fontSize, colWidthPx);
           const imgW = Math.min(result.widthPt, colW);
@@ -810,7 +841,7 @@ async function prepTable(el: TableElement, y: number, opts: RenderOptions, image
   for (const row of el.rows) {
     const rowY = curY;
     for (let c = 0; c < row.length; c++) {
-      if (containsMath(row[c]) || containsInlineCode(row[c]) || containsExplicitBreak(row[c])) {
+      if (containsMath(row[c]) || containsInlineCode(row[c]) || containsExplicitBreak(row[c]) || containsHtml(row[c])) {
         try {
           const result = await renderRunsAsImage(row[c], opts, opts.fontSize, colWidthPx);
           const imgW = Math.min(result.widthPt, colW);
@@ -850,7 +881,7 @@ async function prepTaskList(el: TaskListElement, y: number, opts: RenderOptions,
   for (const item of el.items) {
     const prefix = item.checked ? "☑ " : "☐ ";
 
-    if (containsMath(item.runs) || containsInlineCode(item.runs) || containsExplicitBreak(item.runs)) {
+    if (containsMath(item.runs) || containsInlineCode(item.runs) || containsExplicitBreak(item.runs) || containsHtml(item.runs)) {
       const prefixRuns: InlineRun[] = [{ type: "text", text: prefix }];
       const allRuns = [...prefixRuns, ...item.runs];
       try {
@@ -1064,6 +1095,26 @@ export async function renderMarkdownIncremental(
     return { kind: "no_change", deletedCount: 0 };
   }
 
+  // Check for old naming format shapes - if found, do a full rebuild
+  // This ensures we don't accidentally delete or corrupt old-format shapes
+  if (await hasOldNamingShapes()) {
+    console.log("Found old naming format shapes, performing full rebuild");
+    onProgress?.("检测到旧格式内容，执行完整重建...");
+    deletedCount = await clearSlideMDShapes(onProgress);
+
+    const buildResult = await buildSlides(slides, options, onProgress);
+
+    saveRenderState(slideId, {
+      fingerprints: newFingerprints,
+      nextYs: buildResult.nextYs,
+      elementCount: allElements.length,
+      optionsHash: newOptionsHash,
+    });
+
+    await saveSlideSource(slideId, markdown);
+    return { kind: "full_rebuild", deletedCount };
+  }
+
   if (diff.kind === "full_rebuild") {
     onProgress?.("清除旧内容...");
     deletedCount = await clearSlideMDShapes(onProgress);
@@ -1087,6 +1138,8 @@ export async function renderMarkdownIncremental(
   const startY = diff.startY ?? SLIDE.MARGIN_TOP;
 
   onProgress?.(`增量更新：从元素 ${firstChanged} 开始...`);
+  
+  // Clear shapes from firstChanged onwards (including any extra shapes from removed elements)
   deletedCount = await clearSlideMDShapesFrom(firstChanged, onProgress);
 
   const buildResult = await buildSlides(slides, options, onProgress, {
@@ -1097,7 +1150,7 @@ export async function renderMarkdownIncremental(
   // Merge nextYs: keep old values for unchanged elements, use new for changed
   const mergedNextYs: number[] = [];
   for (let i = 0; i < allElements.length; i++) {
-    if (i < firstChanged && oldState) {
+    if (i < firstChanged && oldState && oldState.nextYs && i < oldState.nextYs.length) {
       mergedNextYs[i] = oldState.nextYs[i];
     } else {
       mergedNextYs[i] = buildResult.nextYs[i];

@@ -135,6 +135,18 @@ export function transformTokens(tokens: Token[]): SlideIR[] {
       continue;
     }
 
+    if (token.type === "html_block") {
+      const htmlContent = token.content.trim();
+      if (htmlContent) {
+        currentElements.push({
+          type: "paragraph",
+          runs: [{ type: "html", html: htmlContent }],
+        });
+      }
+      i++;
+      continue;
+    }
+
     i++;
   }
 
@@ -254,6 +266,9 @@ function parseInlineRuns(children: Token[]): InlineRun[] {
           src: child.attrGet("src") || "",
           alt: child.content || child.attrGet("alt") || "",
         });
+        break;
+      case "html_inline":
+        runs.push({ type: "html", html: child.content });
         break;
       default:
         if (child.content) {

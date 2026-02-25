@@ -96,7 +96,7 @@ export interface TableElement {
   rows: InlineRun[][][];
 }
 
-export type InlineRun = TextRun | InlineMathRun | InlineCodeRun | LinkRun | InlineImageRun | ExplicitBreakRun;
+export type InlineRun = TextRun | InlineMathRun | InlineCodeRun | LinkRun | InlineImageRun | ExplicitBreakRun | HtmlRun;
 
 export interface TextRun {
   type: "text";
@@ -132,6 +132,11 @@ export interface InlineImageRun {
   type: "inline_image";
   src: string;
   alt: string;
+}
+
+export interface HtmlRun {
+  type: "html";
+  html: string;
 }
 
 /** 渲染选项 */

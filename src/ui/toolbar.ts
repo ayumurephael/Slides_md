@@ -75,7 +75,7 @@ export function createToolbar(container: HTMLElement, callbacks: ToolbarCallback
 
   row.appendChild(divider());
 
-  // ── Font size ──
+  // ── Font size (custom spinner with integrated arrows) ──
   const sizeGroup = document.createElement("div");
   sizeGroup.className = "toolbar-group";
   const sizeLabel = document.createElement("label");
@@ -83,16 +83,86 @@ export function createToolbar(container: HTMLElement, callbacks: ToolbarCallback
   sizeLabel.htmlFor = "font-size";
   sizeGroup.appendChild(sizeLabel);
 
+  const sizeSpinner = document.createElement("div");
+  sizeSpinner.className = "font-size-spinner";
+
   const sizeInput = document.createElement("input");
-  sizeInput.type = "number";
+  sizeInput.type = "text";
   sizeInput.id = "font-size";
-  sizeInput.min = "8";
-  sizeInput.max = "72";
+  sizeInput.className = "font-size-input";
   sizeInput.value = String(getFontState().fontSize);
-  sizeInput.addEventListener("change", () => {
-    setFontSize(parseInt(sizeInput.value, 10) || 18);
+  sizeInput.readOnly = true;
+
+  const spinnerArrows = document.createElement("div");
+  spinnerArrows.className = "spinner-arrows";
+
+  const arrowUp = document.createElement("button");
+  arrowUp.type = "button";
+  arrowUp.className = "spinner-arrow spinner-arrow-up";
+  arrowUp.innerHTML = '<svg viewBox="0 0 12 12" width="10" height="10"><path d="M6 3l4 5H2z" fill="currentColor"/></svg>';
+
+  const arrowDown = document.createElement("button");
+  arrowDown.type = "button";
+  arrowDown.className = "spinner-arrow spinner-arrow-down";
+  arrowDown.innerHTML = '<svg viewBox="0 0 12 12" width="10" height="10"><path d="M6 9l-4-5h8z" fill="currentColor"/></svg>';
+
+  const updateFontSize = (delta: number) => {
+    let value = parseInt(sizeInput.value, 10) || 18;
+    value = Math.max(8, Math.min(72, value + delta));
+    sizeInput.value = String(value);
+    setFontSize(value);
+  };
+
+  let intervalId: number | null = null;
+  let timeoutId: number | null = null;
+
+  const startRepeat = (delta: number) => {
+    updateFontSize(delta);
+    timeoutId = window.setTimeout(() => {
+      intervalId = window.setInterval(() => updateFontSize(delta), 80);
+    }, 200);
+  };
+
+  const stopRepeat = () => {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+      timeoutId = null;
+    }
+    if (intervalId) {
+      clearInterval(intervalId);
+      intervalId = null;
+    }
+  };
+
+  arrowUp.addEventListener("mousedown", (e) => {
+    e.preventDefault();
+    startRepeat(1);
   });
-  sizeGroup.appendChild(sizeInput);
+  arrowUp.addEventListener("mouseup", stopRepeat);
+  arrowUp.addEventListener("mouseleave", stopRepeat);
+
+  arrowDown.addEventListener("mousedown", (e) => {
+    e.preventDefault();
+    startRepeat(-1);
+  });
+  arrowDown.addEventListener("mouseup", stopRepeat);
+  arrowDown.addEventListener("mouseleave", stopRepeat);
+
+  sizeInput.addEventListener("keydown", (e) => {
+    if (e.key === "ArrowUp") {
+      e.preventDefault();
+      updateFontSize(1);
+    } else if (e.key === "ArrowDown") {
+      e.preventDefault();
+      updateFontSize(-1);
+    }
+  });
+
+  spinnerArrows.appendChild(arrowUp);
+  spinnerArrows.appendChild(arrowDown);
+  sizeSpinner.appendChild(sizeInput);
+  sizeSpinner.appendChild(spinnerArrows);
+  sizeGroup.appendChild(sizeSpinner);
   row.appendChild(sizeGroup);
 
   // ── Font color ──
