@@ -43,6 +43,7 @@ import {
   computeDiff,
   type RenderState,
   type DiffResult,
+  RENDER_STATE_VERSION,
 } from "./diff-engine";
 import {
   getCurrentSlideId,
@@ -229,12 +230,17 @@ export async function buildSlides(
 
   onProgress?.("添加文本内容...");
 
-  // Track shape and image counts per element for naming
   const shapeCountPerElement = new Map<number, number>();
   const imageCountPerElement = new Map<number, number>();
 
   await PowerPoint.run(async (context) => {
     const slide = context.presentation.getSelectedSlides().getItemAt(0);
+
+    slide.shapes.load("items/name");
+    await context.sync();
+    
+    const existingShapeCount = slide.shapes.items.length;
+    console.log(`[SlideMD] Existing shapes before render: ${existingShapeCount}`);
 
     for (const { result, elementIndex } of elementResults) {
       let shapeCount = 0;
@@ -246,28 +252,19 @@ export async function buildSlides(
     }
     await context.sync();
 
-    // Name the shapes we just created
-    // We need to find them — they are the unnamed shapes or shapes at the end
     slide.shapes.load("items/name");
     await context.sync();
 
-    // Collect all shapes that don't have a SlideMD_ name yet (newly created)
-    const unnamed: PowerPoint.Shape[] = [];
-    for (const shape of slide.shapes.items) {
-      const name = shape.name || "";
-      if (!name.startsWith(SHAPE_NAME_PREFIX)) {
-        unnamed.push(shape);
-      }
-    }
+    const newShapes = slide.shapes.items.slice(existingShapeCount);
+    console.log(`[SlideMD] New shapes created: ${newShapes.length}`);
 
-    // Assign names in order: the shapes were added in elementResults order
-    let unnamedIdx = 0;
+    let shapeIdx = 0;
     for (const { elementIndex } of elementResults) {
       const count = shapeCountPerElement.get(elementIndex) || 0;
       for (let s = 0; s < count; s++) {
-        if (unnamedIdx < unnamed.length) {
-          unnamed[unnamedIdx].name = `${SHAPE_NAME_PREFIX}e${elementIndex}_s${s}`;
-          unnamedIdx++;
+        if (shapeIdx < newShapes.length) {
+          newShapes[shapeIdx].name = `${SHAPE_NAME_PREFIX}e${elementIndex}_s${s}`;
+          shapeIdx++;
         }
       }
     }
@@ -284,18 +281,17 @@ export async function buildSlides(
 
       await insertImageCommonAPI(img);
 
-      // Name the image shape just inserted
       await PowerPoint.run(async (context) => {
         const slide = context.presentation.getSelectedSlides().getItemAt(0);
         slide.shapes.load("items/name");
         await context.sync();
 
-        // The last shape without a SlideMD_ name is the one we just inserted
         const items = slide.shapes.items;
         for (let j = items.length - 1; j >= 0; j--) {
           const name = items[j].name || "";
           if (!name.startsWith(SHAPE_NAME_PREFIX)) {
             items[j].name = `${SHAPE_NAME_PREFIX}e${elemIdx}_i${imgIdx}`;
+            console.log(`[SlideMD] Named image shape: ${items[j].name}`);
             break;
           }
         }
@@ -397,8 +393,8 @@ function runsToHTML(runs: InlineRun[], opts: RenderOptions): string {
             trust: true,
           });
         } catch (e) {
-          console.warn("KaTeX renderToString failed for:", run.latex.substring(0, 60), e);
-          return `<code style="font-family:${opts.codeFontFamily},Consolas,monospace;color:#8B4513;font-style:italic;background:#fff8e8;padding:1px 4px;border-radius:3px;">${escapeHTML(run.latex)}</code>`;
+          console.warn("KaTeX renderToString failed for LaTeX input:", run.latex, e);
+          return `<code data-katex-error="${escapeHTML(String(e))}" style="font-family:${opts.codeFontFamily},Consolas,monospace;color:#8B4513;font-style:italic;background:#fff8e8;padding:1px 4px;border-radius:3px;" title="KaTeX error: ${escapeHTML(String(e))}">${escapeHTML(run.latex)}</code>`;
         }
       case "inline_code":
         return `<code style="font-family:${opts.codeFontFamily},Consolas,monospace;background:#f5f5f5;padding:1px 4px;border-radius:3px;color:#C7254E;">${escapeHTML(run.code)}</code>`;
@@ -1089,16 +1085,17 @@ export async function renderMarkdownIncremental(
   const oldState = loadRenderState(slideId);
   const diff = computeDiff(oldState, newFingerprints, newOptionsHash);
 
+  console.log(`[SlideMD] Render state: old=${oldState ? `${oldState.fingerprints.length} elements` : 'none'}, new=${newFingerprints.length} elements`);
+  console.log(`[SlideMD] Diff result: ${diff.kind}${diff.firstChangedIndex !== undefined ? `, firstChanged=${diff.firstChangedIndex}` : ''}`);
+
   let deletedCount = 0;
 
   if (diff.kind === "no_change") {
     return { kind: "no_change", deletedCount: 0 };
   }
 
-  // Check for old naming format shapes - if found, do a full rebuild
-  // This ensures we don't accidentally delete or corrupt old-format shapes
   if (await hasOldNamingShapes()) {
-    console.log("Found old naming format shapes, performing full rebuild");
+    console.log("[SlideMD] Found old naming format shapes, performing full rebuild");
     onProgress?.("检测到旧格式内容，执行完整重建...");
     deletedCount = await clearSlideMDShapes(onProgress);
 
@@ -1109,6 +1106,7 @@ export async function renderMarkdownIncremental(
       nextYs: buildResult.nextYs,
       elementCount: allElements.length,
       optionsHash: newOptionsHash,
+      version: RENDER_STATE_VERSION,
     });
 
     await saveSlideSource(slideId, markdown);
@@ -1116,38 +1114,38 @@ export async function renderMarkdownIncremental(
   }
 
   if (diff.kind === "full_rebuild") {
+    console.log("[SlideMD] Full rebuild required");
     onProgress?.("清除旧内容...");
     deletedCount = await clearSlideMDShapes(onProgress);
 
     const buildResult = await buildSlides(slides, options, onProgress);
 
-    // Save render state
     saveRenderState(slideId, {
       fingerprints: newFingerprints,
       nextYs: buildResult.nextYs,
       elementCount: allElements.length,
       optionsHash: newOptionsHash,
+      version: RENDER_STATE_VERSION,
     });
 
     await saveSlideSource(slideId, markdown);
     return { kind: "full_rebuild", deletedCount };
   }
 
-  // Incremental
   const firstChanged = diff.firstChangedIndex!;
   const startY = diff.startY ?? SLIDE.MARGIN_TOP;
 
+  console.log(`[SlideMD] Incremental update: from element ${firstChanged}, startY=${startY.toFixed(1)}`);
   onProgress?.(`增量更新：从元素 ${firstChanged} 开始...`);
   
-  // Clear shapes from firstChanged onwards (including any extra shapes from removed elements)
   deletedCount = await clearSlideMDShapesFrom(firstChanged, onProgress);
+  console.log(`[SlideMD] Deleted ${deletedCount} shapes`);
 
   const buildResult = await buildSlides(slides, options, onProgress, {
     startFromIndex: firstChanged,
     startY,
   });
 
-  // Merge nextYs: keep old values for unchanged elements, use new for changed
   const mergedNextYs: number[] = [];
   for (let i = 0; i < allElements.length; i++) {
     if (i < firstChanged && oldState && oldState.nextYs && i < oldState.nextYs.length) {
@@ -1162,9 +1160,11 @@ export async function renderMarkdownIncremental(
     nextYs: mergedNextYs,
     elementCount: allElements.length,
     optionsHash: newOptionsHash,
+    version: RENDER_STATE_VERSION,
   });
 
   await saveSlideSource(slideId, markdown);
+  console.log(`[SlideMD] Incremental render complete: ${allElements.length} elements, ${deletedCount} deleted`);
   return { kind: "incremental", deletedCount };
 }
 
@@ -1235,6 +1235,11 @@ export async function buildSingleSlide(
   await PowerPoint.run(async (context) => {
     const slide = context.presentation.slides.getItem(targetSlideId);
 
+    slide.shapes.load("items/name");
+    await context.sync();
+    
+    const existingShapeCount = slide.shapes.items.length;
+
     for (const { result, elementIndex } of elementResults) {
       let shapeCount = 0;
       for (const op of result.shapeOps) {
@@ -1248,21 +1253,15 @@ export async function buildSingleSlide(
     slide.shapes.load("items/name");
     await context.sync();
 
-    const unnamed: PowerPoint.Shape[] = [];
-    for (const shape of slide.shapes.items) {
-      const name = shape.name || "";
-      if (!name.startsWith(SHAPE_NAME_PREFIX)) {
-        unnamed.push(shape);
-      }
-    }
+    const newShapes = slide.shapes.items.slice(existingShapeCount);
 
-    let unnamedIdx = 0;
+    let shapeIdx = 0;
     for (const { elementIndex } of elementResults) {
       const count = shapeCountPerElement.get(elementIndex) || 0;
       for (let s = 0; s < count; s++) {
-        if (unnamedIdx < unnamed.length) {
-          unnamed[unnamedIdx].name = `${SHAPE_NAME_PREFIX}e${elementIndex}_s${s}`;
-          unnamedIdx++;
+        if (shapeIdx < newShapes.length) {
+          newShapes[shapeIdx].name = `${SHAPE_NAME_PREFIX}e${elementIndex}_s${s}`;
+          shapeIdx++;
         }
       }
     }
@@ -1277,7 +1276,6 @@ export async function buildSingleSlide(
       const imgIdx = imageCountPerElement.get(elemIdx) || 0;
       imageCountPerElement.set(elemIdx, imgIdx + 1);
 
-      // Use PowerPoint API to insert image on specific slide
       await PowerPoint.run(async (context) => {
         const slide = context.presentation.slides.getItem(targetSlideId);
         const dataUrl = `data:image/png;base64,${img.base64}`;
@@ -1289,7 +1287,6 @@ export async function buildSingleSlide(
         });
         await context.sync();
 
-        // Name the image shape
         slide.shapes.load("items/name");
         await context.sync();
         const items = slide.shapes.items;

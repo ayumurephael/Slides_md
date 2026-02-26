@@ -12,7 +12,11 @@ export interface RenderState {
   nextYs: number[];
   elementCount: number;
   optionsHash: string;
+  /** Version number for state format compatibility */
+  version?: number;
 }
+
+export const RENDER_STATE_VERSION = 2;
 
 export type DiffKind = "no_change" | "full_rebuild" | "incremental";
 
@@ -22,6 +26,8 @@ export interface DiffResult {
   firstChangedIndex?: number;
   /** The cursorY to resume rendering from (only for "incremental") */
   startY?: number;
+  /** Indices of elements that need re-rendering (for selective update) */
+  changedIndices?: number[];
 }
 
 /** Simple string hash (djb2) — fast, no crypto needed */
@@ -108,52 +114,52 @@ export function computeDiff(
   newFingerprints: string[],
   newOptionsHash: string
 ): DiffResult {
-  // No previous state → full rebuild
   if (!oldState) {
+    console.log("[SlideMD] No previous state, full rebuild required");
     return { kind: "full_rebuild" };
   }
 
-  // Render options changed → full rebuild
+  if (oldState.version !== RENDER_STATE_VERSION) {
+    console.log("[SlideMD] State version mismatch, full rebuild required");
+    return { kind: "full_rebuild" };
+  }
+
   if (oldState.optionsHash !== newOptionsHash) {
+    console.log("[SlideMD] Render options changed, full rebuild required");
     return { kind: "full_rebuild" };
   }
 
-  // Find first differing element
-  const minLen = Math.min(oldState.fingerprints.length, newFingerprints.length);
-  let firstChanged = -1;
+  const oldFingerprints = oldState.fingerprints || [];
+  const minLen = Math.min(oldFingerprints.length, newFingerprints.length);
+  const changedIndices: number[] = [];
 
   for (let i = 0; i < minLen; i++) {
-    if (oldState.fingerprints[i] !== newFingerprints[i]) {
-      firstChanged = i;
-      break;
+    if (oldFingerprints[i] !== newFingerprints[i]) {
+      changedIndices.push(i);
     }
   }
 
-  // All common elements match
-  if (firstChanged === -1) {
-    if (oldState.fingerprints.length === newFingerprints.length) {
-      // Exactly the same
-      return { kind: "no_change" };
-    }
-    // Elements added or removed at the end
-    firstChanged = minLen;
+  for (let i = minLen; i < newFingerprints.length; i++) {
+    changedIndices.push(i);
   }
 
-  // If elements were removed (new length < old length), we need to ensure
-  // we delete shapes for removed elements. This is handled by clearSlideMDShapesFrom.
-  // The startY should be from the element before firstChanged.
+  if (changedIndices.length === 0 && oldFingerprints.length === newFingerprints.length) {
+    console.log("[SlideMD] No changes detected");
+    return { kind: "no_change" };
+  }
+
+  const firstChanged = changedIndices.length > 0 ? Math.min(...changedIndices) : minLen;
   
-  // Determine startY from the previous render state
-  // If firstChanged is 0, we start from the top
-  // Otherwise, we use the nextY of the previous element
+  console.log(`[SlideMD] Incremental update: ${changedIndices.length} elements changed, first at index ${firstChanged}`);
+  console.log(`[SlideMD] Changed indices: [${changedIndices.slice(0, 10).join(", ")}${changedIndices.length > 10 ? "..." : ""}]`);
+
   let startY: number | undefined;
   if (firstChanged === 0) {
-    startY = undefined;  // Will use default MARGIN_TOP
+    startY = undefined;
   } else if (oldState.nextYs && oldState.nextYs.length >= firstChanged) {
     startY = oldState.nextYs[firstChanged - 1];
   } else {
-    // Fallback: we don't have valid nextYs, do a full rebuild
-    console.warn("Invalid nextYs in old state, falling back to full rebuild");
+    console.warn("[SlideMD] Invalid nextYs in old state, falling back to full rebuild");
     return { kind: "full_rebuild" };
   }
 
@@ -161,5 +167,6 @@ export function computeDiff(
     kind: "incremental",
     firstChangedIndex: firstChanged,
     startY,
+    changedIndices,
   };
 }

@@ -5,7 +5,8 @@
       "mcp__ide__getDiagnostics",
       "Bash(npm install:*)",
       "Bash(npx tsc:*)",
-      "Bash(npx webpack:*)"
+      "Bash(npx webpack:*)",
+      "Bash(node test-katex-render.js:*)"
     ]
   }
 }

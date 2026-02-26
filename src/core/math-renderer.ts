@@ -824,10 +824,13 @@ export async function renderMath(
       });
 
       if (html.includes("katex-error")) {
-        console.warn(`KaTeX parse error for: ${latex.substring(0, 80)}`);
+        console.warn(`KaTeX parse error for LaTeX input: ${latex}`);
+        // Inject original LaTeX as data attribute for debugging
+        const wrappedHtml = `<span data-katex-error-source="${latex.replace(/"/g, '&quot;')}">${html}</span>`;
+        container.innerHTML = wrappedHtml;
+      } else {
+        container.innerHTML = html;
       }
-
-      container.innerHTML = html;
 
       await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
       await new Promise((r) => setTimeout(r, 50));
