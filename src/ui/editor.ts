@@ -53,7 +53,7 @@ const customTheme = EditorView.theme({
     overflowY: "auto",
     overflowX: "auto",
     lineHeight: "1.65",
-    fontFamily: `"JetBrains Mono", "黑体", "SimHei", Consolas, monospace`,
+    fontFamily: `"JetBrains Mono", "LXGW WenKai Mono TC", Consolas, monospace`,
   },
   ".cm-gutters": {
     background: "#F8FAFC",
@@ -72,7 +72,7 @@ const customTheme = EditorView.theme({
   ".cm-content": {
     padding: "16px 0",
     caretColor: "#6366F1",
-    fontFamily: `"JetBrains Mono", "黑体", "SimHei", Consolas, monospace`,
+    fontFamily: `"JetBrains Mono", "LXGW WenKai Mono TC", Consolas, monospace`,
   },
   ".cm-line": {
     padding: "0 20px 0 16px",
@@ -89,10 +89,181 @@ const customTheme = EditorView.theme({
   },
   ".cm-placeholder": {
     color: "#94A3B8",
-    fontFamily: `"JetBrains Mono", "黑体", "SimHei", Georgia, serif`,
+    fontFamily: `"JetBrains Mono", "LXGW WenKai Mono TC", Georgia, serif`,
     fontSize: "12px",
   },
 });
+
+/* ── Custom horizontal scrollbar helper ── */
+function attachHorizontalScrollbar(wrapper: HTMLElement): void {
+  const track = document.createElement("div");
+  track.className = "editor-scrollbar-track-h";
+  const thumb = document.createElement("div");
+  thumb.className = "editor-scrollbar-thumb-h";
+  track.appendChild(thumb);
+  wrapper.appendChild(track);
+
+  const scroller = wrapper.querySelector(".cm-scroller") as HTMLElement;
+  if (!scroller) return;
+
+  let isDragging = false;
+  let dragStartX = 0;
+  let dragStartScrollLeft = 0;
+  let rafId: number | null = null;
+  let trackHovered = false;
+  let thumbHovered = false;
+
+  function updateThumbVisibility(): void {
+    const { scrollWidth, clientWidth } = scroller;
+    const canScroll = scrollWidth > clientWidth;
+
+    if (canScroll || trackHovered || thumbHovered || isDragging) {
+      track.style.opacity = "1";
+    } else {
+      track.style.opacity = "0";
+    }
+  }
+
+  function update(): void {
+    const { scrollWidth, clientWidth, scrollLeft } = scroller;
+    const canScroll = scrollWidth > clientWidth;
+
+    if (!canScroll) {
+      thumb.classList.add("disabled");
+      thumb.style.width = "100%";
+      thumb.style.transform = "translateX(0)";
+      updateThumbVisibility();
+      return;
+    }
+
+    thumb.classList.remove("disabled");
+
+    const ratio = clientWidth / scrollWidth;
+    const thumbW = Math.max(ratio * clientWidth, 30);
+    const maxScroll = scrollWidth - clientWidth;
+    const maxLeft = clientWidth - thumbW;
+    const left = maxScroll > 0 ? (scrollLeft / maxScroll) * maxLeft : 0;
+
+    thumb.style.width = `${thumbW}px`;
+    thumb.style.transform = `translateX(${left}px)`;
+    updateThumbVisibility();
+  }
+
+  function scheduleUpdate(): void {
+    if (rafId !== null) {
+      cancelAnimationFrame(rafId);
+    }
+    rafId = requestAnimationFrame(() => {
+      rafId = null;
+      update();
+    });
+  }
+
+  scroller.addEventListener("scroll", scheduleUpdate, { passive: true });
+
+  track.addEventListener("mouseenter", () => {
+    trackHovered = true;
+    updateThumbVisibility();
+  });
+
+  track.addEventListener("mouseleave", () => {
+    trackHovered = false;
+    if (!isDragging) {
+      scheduleUpdate();
+    }
+  });
+
+  thumb.addEventListener("mouseenter", () => {
+    thumbHovered = true;
+    updateThumbVisibility();
+  });
+
+  thumb.addEventListener("mouseleave", () => {
+    thumbHovered = false;
+    if (!isDragging) {
+      scheduleUpdate();
+    }
+  });
+
+  thumb.addEventListener("mousedown", (e: MouseEvent) => {
+    const { scrollWidth, clientWidth } = scroller;
+    if (scrollWidth <= clientWidth) return;
+
+    e.preventDefault();
+    isDragging = true;
+    dragStartX = e.clientX;
+    dragStartScrollLeft = scroller.scrollLeft;
+    thumb.classList.add("active");
+    document.body.style.userSelect = "none";
+    document.body.style.cursor = "grabbing";
+  });
+
+  const onMouseMove = (e: MouseEvent) => {
+    if (!isDragging) return;
+
+    const dx = e.clientX - dragStartX;
+    const { scrollWidth, clientWidth } = scroller;
+    const ratio = clientWidth / scrollWidth;
+    const thumbW = Math.max(ratio * clientWidth, 30);
+    const maxLeft = clientWidth - thumbW;
+    const maxScroll = scrollWidth - clientWidth;
+
+    if (maxLeft > 0) {
+      scroller.scrollLeft = dragStartScrollLeft + (dx / maxLeft) * maxScroll;
+    }
+  };
+
+  const onMouseUp = () => {
+    if (!isDragging) return;
+    isDragging = false;
+    thumb.classList.remove("active");
+    document.body.style.userSelect = "";
+    document.body.style.cursor = "";
+    scheduleUpdate();
+  };
+
+  document.addEventListener("mousemove", onMouseMove);
+  document.addEventListener("mouseup", onMouseUp);
+
+  track.addEventListener("mousedown", (e: MouseEvent) => {
+    const { scrollWidth, clientWidth } = scroller;
+    if (scrollWidth <= clientWidth) return;
+    if (e.target === thumb) return;
+
+    const rect = track.getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    const ratio = clientWidth / scrollWidth;
+    const thumbW = Math.max(ratio * clientWidth, 30);
+    const thumbLeft = parseFloat(thumb.style.transform?.replace("translateX(", "").replace("px)", "") || "0");
+    const thumbCenter = thumbLeft + thumbW / 2;
+
+    const page = clientWidth * 0.9;
+    const targetScroll = scroller.scrollLeft + (clickX < thumbCenter ? -page : page);
+
+    scroller.scrollTo({
+      left: targetScroll,
+      behavior: "smooth"
+    });
+  });
+
+  const ro = new ResizeObserver(scheduleUpdate);
+  ro.observe(scroller);
+
+  const content = scroller.querySelector(".cm-content");
+  if (content) ro.observe(content);
+
+  const mo = new MutationObserver(scheduleUpdate);
+  mo.observe(scroller, { childList: true, subtree: true });
+
+  wrapper.addEventListener("wheel", (e) => {
+    if (e.target === track || e.target === thumb) {
+      e.preventDefault();
+      scroller.scrollLeft += e.deltaY;
+    }
+  }, { passive: false });
+
+  scheduleUpdate();
+}
 
 /* ── Custom scrollbar helper ── */
 function attachCustomScrollbar(wrapper: HTMLElement): void {
@@ -279,7 +450,6 @@ export function createEditor(container: HTMLElement): EditorAdapter {
       lineNumbers(),
       foldGutter(),
       highlightActiveLine(),
-      EditorView.lineWrapping,
       keymap.of([...defaultKeymap, indentWithTab]),
       markdown({ codeLanguages: languages }),
       syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
@@ -300,8 +470,9 @@ export function createEditor(container: HTMLElement): EditorAdapter {
 
   const view = new EditorView({ state, parent: wrapper });
 
-  /* Attach custom scrollbar after CM has rendered */
+  /* Attach custom scrollbars after CM has rendered */
   attachCustomScrollbar(wrapper);
+  attachHorizontalScrollbar(wrapper);
 
   return {
     getValue(): string {

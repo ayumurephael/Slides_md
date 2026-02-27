@@ -2,7 +2,7 @@
    Slides MD — Design System & Component Styles
    ============================================================ */
 
-@import url('https://fonts.googleapis.com/css2?family=Lusitana:wght@400;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=LXGW+WenKai+Mono+TC:wght@400;700&family=Lusitana:wght@400;700&display=swap');
 
 :root {
   /* ── Primary palette (refined indigo-blue) ── */
@@ -129,25 +129,13 @@
 }
 
 #md-editor .cm-scroller {
-  scrollbar-width: thin;
-  scrollbar-color: var(--gray-300) transparent;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 
 #md-editor .cm-scroller::-webkit-scrollbar {
-  width: 8px;
-}
-
-#md-editor .cm-scroller::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-#md-editor .cm-scroller::-webkit-scrollbar-thumb {
-  background: var(--gray-300);
-  border-radius: var(--radius-full);
-}
-
-#md-editor .cm-scroller::-webkit-scrollbar-thumb:hover {
-  background: var(--gray-400);
+  width: 0;
+  height: 0;
 }
 
 .editor-scrollbar-track {
@@ -198,6 +186,51 @@
   background: var(--gray-200);
   cursor: default;
   min-height: unset;
+}
+
+/* ── Editor horizontal scrollbar — custom overlay ── */
+.editor-scrollbar-track-h {
+  position: absolute;
+  left: 0;
+  right: 12px;
+  bottom: 0;
+  height: 12px;
+  background: var(--gray-100);
+  border-top: 1px solid var(--gray-200);
+  z-index: 10;
+  cursor: default;
+  opacity: 0;
+  transition: opacity var(--duration-normal) var(--ease-out);
+  pointer-events: auto;
+}
+
+.editor-scrollbar-thumb-h {
+  position: absolute;
+  left: 0;
+  bottom: 2px;
+  height: 8px;
+  min-width: 30px;
+  background: var(--gray-300);
+  border-radius: var(--radius-full);
+  transition: background var(--duration-fast);
+  cursor: grab;
+  pointer-events: auto;
+}
+
+.editor-scrollbar-thumb-h:hover,
+.editor-scrollbar-thumb-h.active {
+  background: var(--gray-400);
+}
+
+.editor-scrollbar-thumb-h.active {
+  cursor: grabbing;
+  background: var(--gray-500);
+}
+
+.editor-scrollbar-thumb-h.disabled {
+  background: var(--gray-200);
+  cursor: default;
+  min-width: unset;
 }
 
 /* ── Base ── */
@@ -382,7 +415,7 @@ body {
 #md-editor .cm-scroller {
   overflow-y: auto !important;
   overflow-x: auto !important;
-  font-family: "JetBrains Mono", "黑体", "SimHei", Consolas, monospace;
+  font-family: "JetBrains Mono", "LXGW WenKai Mono TC", Consolas, monospace;
 }
 
 #md-editor:focus {
