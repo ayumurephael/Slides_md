@@ -91,7 +91,6 @@ export function createToolbar(container: HTMLElement, callbacks: ToolbarCallback
   sizeInput.id = "font-size";
   sizeInput.className = "font-size-input";
   sizeInput.value = String(getFontState().fontSize);
-  sizeInput.readOnly = true;
 
   const spinnerArrows = document.createElement("div");
   spinnerArrows.className = "spinner-arrows";
@@ -155,8 +154,27 @@ export function createToolbar(container: HTMLElement, callbacks: ToolbarCallback
     } else if (e.key === "ArrowDown") {
       e.preventDefault();
       updateFontSize(-1);
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      validateAndApplyFontSize();
+      sizeInput.blur();
     }
   });
+
+  sizeInput.addEventListener("blur", () => {
+    validateAndApplyFontSize();
+  });
+
+  const validateAndApplyFontSize = () => {
+    let value = parseInt(sizeInput.value, 10);
+    if (isNaN(value) || value < 8) {
+      value = 8;
+    } else if (value > 72) {
+      value = 72;
+    }
+    sizeInput.value = String(value);
+    setFontSize(value);
+  };
 
   spinnerArrows.appendChild(arrowUp);
   spinnerArrows.appendChild(arrowDown);

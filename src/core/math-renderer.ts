@@ -649,19 +649,27 @@ function getKatexInlineStyles(): string {
 
     /* --- SlideMD fixes --- */
 
-    /* Fix inline math font size: KaTeX defaults to 1.21em which makes inline
-       math ~21% larger than surrounding text. Normalize to 1em inside mixed
-       text+math paragraphs so they visually match. */
-    .slidemd-mixed > .katex { font-size: 1em; }
-    /* Keep display-mode math ($$...$$) at the standard KaTeX size */
-    .slidemd-mixed > .katex-display > .katex { font-size: 1.21em; }
-
-    /* Baseline alignment for inline KaTeX with CJK text. */
+    /* Prevent inline KaTeX elements from breaking internally when the
+       container uses word-wrap / white-space: normal.
+       Also normalize font-size: KaTeX defaults to 1.21em which makes inline
+       math ~21% larger than surrounding text — use 1em to match.
+       Baseline alignment for inline KaTeX with CJK text. */
     .slidemd-mixed > .katex {
+      display: inline-block;
+      white-space: nowrap;
+      font-size: 1em;
       vertical-align: -0.2ex;
       position: relative;
       top: -0.1ex;
     }
+    /* Prevent inline code from breaking internally */
+    .slidemd-mixed code {
+      display: inline-block;
+      white-space: nowrap;
+    }
+    /* Keep display-mode math ($$...$$) at the standard KaTeX size */
+    .slidemd-mixed > .katex-display > .katex { font-size: 1.21em; }
+
     .slidemd-mixed > .katex .base {
       line-height: inherit;
     }
@@ -935,9 +943,11 @@ function calibrateInlineMathBaseline(
 /**
  * Render a mixed paragraph (text + inline math) as a single high-res PNG.
  * Uses html2canvas with SVG foreignObject fallback.
- * 
- * NOTE: Auto-wrapping is DISABLED. Text will only wrap at explicit [br] markers
- * (converted to <br> tags). Long text without [br] will overflow the container.
+ *
+ * The container is constrained to `maxWidthPx` so that text wraps naturally
+ * when the font size increases, producing a taller image instead of a wider
+ * one that would be scaled back down and negate the font-size change.
+ * Inline KaTeX elements are `inline-block` and will not break internally.
  */
 export async function renderMixedParagraph(
   html: string,
@@ -966,7 +976,9 @@ export async function renderMixedParagraph(
       fontFamily,
       color: fontColor,
       lineHeight: "1.6",
-      whiteSpace: "nowrap",
+      whiteSpace: "normal",
+      wordBreak: "break-word",
+      maxWidth: `${maxWidthPx}px`,
     });
     container.classList.add("slidemd-mixed");
     document.body.appendChild(container);

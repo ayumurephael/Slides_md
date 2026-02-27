@@ -490,7 +490,7 @@ async function prepareElement(
     case "blockquote": return prepBlockquote(el, cursorY, opts, images);
     case "list": return prepList(el, cursorY, opts, 0, images);
     case "block_math": return prepBlockMath(el, cursorY, opts, images);
-    case "image": return prepImage(el, cursorY, images);
+    case "image": return prepImage(el, cursorY, opts, images);
     case "table": return prepTable(el, cursorY, opts, images);
     case "task_list": return prepTaskList(el, cursorY, opts, images);
     case "admonition": return prepAdmonition(el, cursorY, opts, images);
@@ -501,7 +501,10 @@ async function prepareElement(
 }
 
 async function prepHeading(el: HeadingElement, y: number, opts: RenderOptions, images: PendingImage[]): Promise<ElementResult> {
-  const fontSize = HEADING_SIZES[el.level] || 18;
+  // Scale heading sizes proportionally with the user's base font size.
+  // HEADING_SIZES are calibrated for a base of 18pt; scale accordingly.
+  const baseHeadingSize = HEADING_SIZES[el.level] || 18;
+  const fontSize = Math.round(baseHeadingSize * (opts.fontSize / 18));
   const text = runsToText(el.runs);
   const h = fontSize * 1.6;
   const color = opts.fontColor;
@@ -604,8 +607,9 @@ async function prepParagraph(
 }
 
 function prepCodeBlock(el: CodeBlockElement, y: number, opts: RenderOptions): ElementResult {
+  const codeFontSize = Math.max(10, opts.fontSize - 4);
   const lines = el.code.split("\n");
-  const lineH = 14 * 1.4;
+  const lineH = codeFontSize * 1.4;
   const h = lines.length * lineH + CODE_PADDING * 2;
   const ops: ShapeOp[] = [(slide) => {
     const bg = slide.shapes.addGeometricShape("Rectangle", {
@@ -618,7 +622,7 @@ function prepCodeBlock(el: CodeBlockElement, y: number, opts: RenderOptions): El
       width: CONTENT_WIDTH - CODE_PADDING * 2, height: h - CODE_PADDING * 2,
     });
     tb.textFrame.textRange.font.name = opts.codeFontFamily;
-    tb.textFrame.textRange.font.size = 14;
+    tb.textFrame.textRange.font.size = codeFontSize;
     tb.textFrame.textRange.font.color = "#333333";
   }];
   return { nextY: y + h + ELEMENT_SPACING.code_block, shapeOps: ops };
@@ -767,7 +771,7 @@ async function prepBlockMath(
 }
 
 async function prepImage(
-  el: ImageElement, y: number, images: PendingImage[]
+  el: ImageElement, y: number, opts: RenderOptions, images: PendingImage[]
 ): Promise<ElementResult> {
   try {
     const dataUrl = await fetchImageAsBase64(el.src);
@@ -783,7 +787,7 @@ async function prepImage(
         left: SLIDE.MARGIN_LEFT, top: y, width: CONTENT_WIDTH, height: 24,
       });
       tb.textFrame.textRange.font.color = "#999999";
-      tb.textFrame.textRange.font.size = 14;
+      tb.textFrame.textRange.font.size = Math.max(10, opts.fontSize - 4);
     }];
     return { nextY: y + 24 + ELEMENT_SPACING.image, shapeOps: ops };
   }
@@ -980,9 +984,9 @@ async function prepTikZ(
     images.push({ base64: result.base64, left, top: y, width: imgW, height: imgH });
     return { nextY: y + imgH + ELEMENT_SPACING.image, shapeOps: [] };
   } catch {
-    // Fallback: render TikZ source as a code block
+    const codeFontSize = Math.max(10, opts.fontSize - 4);
     const lines = el.code.split("\n");
-    const lineH = 14 * 1.4;
+    const lineH = codeFontSize * 1.4;
     const h = lines.length * lineH + CODE_PADDING * 2 + 24;
     const ops: ShapeOp[] = [(slide) => {
       const bg = slide.shapes.addGeometricShape("Rectangle", {
@@ -990,21 +994,19 @@ async function prepTikZ(
       });
       bg.fill.setSolidColor("#FFF3E0");
       bg.lineFormat.visible = false;
-      // Error label
       const label = slide.shapes.addTextBox("[TikZ 渲染失败]", {
         left: SLIDE.MARGIN_LEFT + CODE_PADDING, top: y + 4,
         width: CONTENT_WIDTH - CODE_PADDING * 2, height: 20,
       });
-      label.textFrame.textRange.font.size = 12;
+      label.textFrame.textRange.font.size = Math.max(10, codeFontSize - 2);
       label.textFrame.textRange.font.color = "#F57C00";
       label.textFrame.textRange.font.bold = true;
-      // Source code
       const tb = slide.shapes.addTextBox(el.code, {
         left: SLIDE.MARGIN_LEFT + CODE_PADDING, top: y + 24,
         width: CONTENT_WIDTH - CODE_PADDING * 2, height: h - CODE_PADDING * 2 - 24,
       });
       tb.textFrame.textRange.font.name = opts.codeFontFamily;
-      tb.textFrame.textRange.font.size = 12;
+      tb.textFrame.textRange.font.size = codeFontSize;
       tb.textFrame.textRange.font.color = "#333333";
     }];
     return { nextY: y + h + ELEMENT_SPACING.code_block, shapeOps: ops };
@@ -1023,9 +1025,9 @@ async function prepAlgorithm(
     images.push({ base64: result.base64, left, top: y, width: imgW, height: imgH });
     return { nextY: y + imgH + ELEMENT_SPACING.image, shapeOps: [] };
   } catch {
-    // Fallback: render as code block
+    const codeFontSize = Math.max(10, opts.fontSize - 4);
     const lines = el.code.split("\n");
-    const lineH = 14 * 1.4;
+    const lineH = codeFontSize * 1.4;
     const h = lines.length * lineH + CODE_PADDING * 2;
     const ops: ShapeOp[] = [(slide) => {
       const bg = slide.shapes.addGeometricShape("Rectangle", {
@@ -1038,7 +1040,7 @@ async function prepAlgorithm(
         width: CONTENT_WIDTH - CODE_PADDING * 2, height: h - CODE_PADDING * 2,
       });
       tb.textFrame.textRange.font.name = opts.codeFontFamily;
-      tb.textFrame.textRange.font.size = 14;
+      tb.textFrame.textRange.font.size = codeFontSize;
       tb.textFrame.textRange.font.color = "#333333";
     }];
     return { nextY: y + h + ELEMENT_SPACING.code_block, shapeOps: ops };
